@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import { Wallet, Clock, LogOut } from 'lucide-react';
 
 const Profile = () => {
     const { currentUser, orders, topUp, logout } = useApp();
+    const navigate = useNavigate();
     const [topUpAmount, setTopUpAmount] = useState('');
 
     const handleTopUp = (e) => {
@@ -64,13 +66,22 @@ const Profile = () => {
                         <p style={{ color: 'var(--color-text-muted)' }}>No orders yet.</p>
                     ) : (
                         myOrders.map(order => (
-                            <div key={order.id} className="glass-panel" style={{ padding: '1rem' }}>
+                            <div
+                                key={order.id}
+                                className="glass-panel"
+                                style={{ padding: '1rem', cursor: 'pointer', transition: 'transform 0.2s' }}
+                                onClick={() => navigate(`/customer/order/${order.id}`)}
+                                onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
+                                onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                            >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                     <span style={{ fontWeight: 'bold' }}>Order #{order.id.slice(-4)}</span>
                                     <span style={{
-                                        color: order.status === 'pending' ? 'orange' : order.status === 'completed' ? 'var(--color-neon-green)' : 'white',
+                                        color: order.status === 'pending' ? 'orange' :
+                                            order.status === 'completed' ? 'var(--color-neon-green)' :
+                                                order.status === 'rejected' ? 'var(--color-hot-pink)' : 'var(--color-electric-blue)',
                                         textTransform: 'capitalize'
-                                    }}>{order.status}</span>
+                                    }}>{order.status.replace(/_/g, ' ')}</span>
                                 </div>
                                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
                                     {new Date(order.timestamp).toLocaleString()}

@@ -1,6 +1,6 @@
 
 import { NavLink } from 'react-router-dom';
-import { Home, ShoppingCart, User } from 'lucide-react';
+import { Home, ShoppingCart, User, ClipboardList } from 'lucide-react';
 
 const Navbar = () => {
     return (
@@ -32,6 +32,12 @@ const Navbar = () => {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '0.8rem'
             })}>
                 <ShoppingCart size={24} />
+            </NavLink>
+            <NavLink to="/customer/active-orders" style={({ isActive }) => ({
+                color: isActive ? 'var(--color-neon-green)' : 'var(--color-text-muted)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', fontSize: '0.8rem'
+            })}>
+                <ClipboardList size={24} />
             </NavLink>
             <NavLink to="/customer/profile" style={({ isActive }) => ({
                 color: isActive ? 'var(--color-hot-pink)' : 'var(--color-text-muted)',

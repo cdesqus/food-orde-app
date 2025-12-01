@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X, MessageCircle, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const MerchantDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
-    const { currentUser, logout, foods, addFood, updateFood, orders, updateOrder, users, withdrawals, requestWithdrawal } = useApp();
+    const { currentUser, logout, foods, addFood, updateFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'menu' | 'orders'
     const [showAddFood, setShowAddFood] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
@@ -16,6 +16,11 @@ const MerchantDashboard = () => {
         accountNumber: '',
         accountHolder: ''
     });
+
+    // Chat State
+    const [showChatModal, setShowChatModal] = useState(false);
+    const [activeChatOrder, setActiveChatOrder] = useState(null);
+    const [chatMessage, setChatMessage] = useState('');
 
     // Form State
     const [foodForm, setFoodForm] = useState({
@@ -180,6 +185,10 @@ const MerchantDashboard = () => {
     const handleOrderAction = (orderId, action) => {
         // action: 'accepted' | 'rejected' | 'completed'
         updateOrder(orderId, action);
+
+        if (action === 'delivered_to_shelter') {
+            sendMessage(orderId, currentUser.id, "Makanan udah sampe di titik jemput nih! Buruan ambil sebelum dingin ya! 📍🏃💨");
+        }
     };
 
     const inputStyle = {
@@ -478,21 +487,53 @@ const MerchantDashboard = () => {
                                             <div>
                                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Payment: {order.paymentMethod.toUpperCase()}</div>
                                                 <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Total: Rp {order.total.toLocaleString()}</div>
+
+                                                {/* Chat Button */}
+                                                {['cooking', 'delivered_to_shelter'].includes(order.status) && (
+                                                    <button
+                                                        onClick={() => { setActiveChatOrder(order); setShowChatModal(true); }}
+                                                        style={{
+                                                            marginTop: '10px', background: 'var(--color-bg-main)', border: '1px solid var(--color-border)',
+                                                            padding: '6px 12px', borderRadius: '15px', color: 'var(--color-text-main)', cursor: 'pointer',
+                                                            display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', position: 'relative'
+                                                        }}
+                                                    >
+                                                        <MessageCircle size={16} /> Chat with Customer
+                                                        {(() => {
+                                                            const orderMsgs = messages.filter(m => m.orderId === order.id);
+                                                            const lastMsg = orderMsgs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                                                            if (lastMsg && lastMsg.senderId !== currentUser.id) {
+                                                                return (
+                                                                    <span style={{
+                                                                        position: 'absolute', top: '-5px', right: '-5px',
+                                                                        width: '10px', height: '10px', borderRadius: '50%',
+                                                                        background: 'red', border: '1px solid white'
+                                                                    }} />
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </button>
+                                                )}
                                             </div>
 
                                             <div style={{ display: 'flex', gap: '10px' }}>
                                                 {order.status === 'pending' && (
                                                     <>
                                                         <button onClick={() => handleOrderAction(order.id, 'rejected')} style={{ padding: '8px 12px', borderRadius: '20px', border: '1px solid var(--color-hot-pink)', background: 'transparent', color: 'var(--color-hot-pink)', cursor: 'pointer' }}>Reject</button>
-                                                        <button onClick={() => handleOrderAction(order.id, 'accepted')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-neon-green)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Accept</button>
+                                                        <button onClick={() => handleOrderAction(order.id, 'cooking')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-neon-green)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Accept & Cook</button>
                                                     </>
                                                 )}
-                                                {order.status === 'accepted' && (
+                                                {order.status === 'cooking' && (
+                                                    <button onClick={() => handleOrderAction(order.id, 'delivered_to_shelter')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-electric-blue)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Mark Arrived at Shelter</button>
+                                                )}
+                                                {order.status === 'delivered_to_shelter' && (
                                                     <button onClick={() => handleOrderAction(order.id, 'completed')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-primary)', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Complete Order</button>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
+
                                 );
                             })
                         )}
@@ -501,85 +542,187 @@ const MerchantDashboard = () => {
             </div>
 
             {/* Withdrawal Modal */}
-            {showWithdrawModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-                    backdropFilter: 'blur(5px)'
-                }}>
-                    <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
-                        <button
-                            onClick={() => setShowWithdrawModal(false)}
-                            style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                        >
-                            <X size={24} />
-                        </button>
-
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <DollarSign color="var(--color-neon-green)" /> Withdraw Funds
-                        </h2>
-
-                        <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)' }}>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Available to Withdraw</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Rp {availableBalance.toLocaleString()}</div>
-                        </div>
-
-                        <form onSubmit={handleWithdrawSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Amount</label>
-                                <input
-                                    type="number"
-                                    placeholder="Enter amount"
-                                    value={withdrawForm.amount}
-                                    onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
-                                    max={availableBalance}
-                                    min={10000}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Bank Name</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. BCA, Mandiri"
-                                    value={withdrawForm.bankName}
-                                    onChange={e => setWithdrawForm({ ...withdrawForm, bankName: e.target.value })}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Number</label>
-                                <input
-                                    type="text"
-                                    placeholder="1234567890"
-                                    value={withdrawForm.accountNumber}
-                                    onChange={e => setWithdrawForm({ ...withdrawForm, accountNumber: e.target.value })}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Holder Name</label>
-                                <input
-                                    type="text"
-                                    placeholder="Name on account"
-                                    value={withdrawForm.accountHolder}
-                                    onChange={e => setWithdrawForm({ ...withdrawForm, accountHolder: e.target.value })}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </div>
-
-                            <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
-                                Submit Request
+            {
+                showWithdrawModal && (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                        backdropFilter: 'blur(5px)'
+                    }}>
+                        <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
+                            <button
+                                onClick={() => setShowWithdrawModal(false)}
+                                style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                            >
+                                <X size={24} />
                             </button>
-                        </form>
+
+                            <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <DollarSign color="var(--color-neon-green)" /> Withdraw Funds
+                            </h2>
+
+                            <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)' }}>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Available to Withdraw</div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Rp {availableBalance.toLocaleString()}</div>
+                            </div>
+
+                            <form onSubmit={handleWithdrawSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Amount</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Enter amount"
+                                        value={withdrawForm.amount}
+                                        onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
+                                        max={availableBalance}
+                                        min={10000}
+                                        required
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Bank Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. BCA, Mandiri"
+                                        value={withdrawForm.bankName}
+                                        onChange={e => setWithdrawForm({ ...withdrawForm, bankName: e.target.value })}
+                                        required
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Number</label>
+                                    <input
+                                        type="text"
+                                        placeholder="1234567890"
+                                        value={withdrawForm.accountNumber}
+                                        onChange={e => setWithdrawForm({ ...withdrawForm, accountNumber: e.target.value })}
+                                        required
+                                        style={inputStyle}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Holder Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Name on account"
+                                        value={withdrawForm.accountHolder}
+                                        onChange={e => setWithdrawForm({ ...withdrawForm, accountHolder: e.target.value })}
+                                        required
+                                        style={inputStyle}
+                                    />
+                                </div>
+
+                                <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+                                    Submit Request
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+            {/* Chat Modal */}
+            {
+                showChatModal && activeChatOrder && (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
+                        backdropFilter: 'blur(5px)'
+                    }}>
+                        <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', height: '500px', display: 'flex', flexDirection: 'column', position: 'relative', padding: 0, overflow: 'hidden' }}>
+                            <div style={{ padding: '15px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                                <h3 style={{ fontSize: '1rem', margin: 0 }}>Chat - Order #{activeChatOrder.id.slice(-4)}</h3>
+                                <button onClick={() => { setShowChatModal(false); setActiveChatOrder(null); }} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {messages.filter(m => m.orderId === activeChatOrder.id).length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '20px' }}>No messages yet.</div>
+                                ) : (
+                                    messages.filter(m => m.orderId === activeChatOrder.id).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).map(msg => {
+                                        const isMe = msg.senderId === currentUser.id;
+                                        return (
+                                            <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+                                                <div style={{
+                                                    background: isMe ? 'var(--color-primary)' : 'var(--color-bg-surface)',
+                                                    color: isMe ? 'white' : 'var(--color-text-main)',
+                                                    padding: '8px 12px', borderRadius: '12px',
+                                                    border: isMe ? 'none' : '1px solid var(--color-border)',
+                                                    fontSize: '0.9rem'
+                                                }}>
+                                                    {msg.text}
+                                                </div>
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px', textAlign: isMe ? 'right' : 'left' }}>
+                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            <div style={{ padding: '15px', borderTop: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)' }}>
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
+                                    {[
+                                        "Pesanan siap diproses! Ditunggu ya 🔥🍳",
+                                        "Lagi dimasak penuh cinta nih, sabar ya! 👨‍🍳✨",
+                                        "Sebentar lagi matang, siap-siap ya! 🚀"
+                                    ].map((text, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => {
+                                                sendMessage(activeChatOrder.id, currentUser.id, text);
+                                            }}
+                                            style={{
+                                                whiteSpace: 'nowrap',
+                                                padding: '6px 12px',
+                                                borderRadius: '15px',
+                                                border: '1px solid var(--color-border)',
+                                                background: 'var(--color-bg-surface)',
+                                                color: 'var(--color-text-main)',
+                                                fontSize: '0.8rem',
+                                                cursor: 'pointer',
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            {text}
+                                        </button>
+                                    ))}
+                                </div>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!chatMessage.trim()) return;
+                                    sendMessage(activeChatOrder.id, currentUser.id, chatMessage);
+                                    setChatMessage('');
+                                }} style={{ display: 'flex', gap: '10px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Type a message..."
+                                        value={chatMessage}
+                                        onChange={e => setChatMessage(e.target.value)}
+                                        style={{
+                                            flex: 1, padding: '10px', borderRadius: '20px', border: '1px solid var(--color-border)',
+                                            background: 'white', color: '#333', outline: 'none'
+                                        }}
+                                    />
+                                    <button type="submit" style={{
+                                        width: '40px', height: '40px', borderRadius: '50%', border: 'none',
+                                        background: 'var(--color-primary)', color: 'white', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <Send size={18} />
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

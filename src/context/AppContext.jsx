@@ -74,9 +74,20 @@ export const AppProvider = ({ children }) => {
     }
   });
 
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('messages');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to parse messages', e);
+      return [];
+    }
+  });
+
   useEffect(() => { localStorage.setItem('users', JSON.stringify(users)); }, [users]);
   useEffect(() => { localStorage.setItem('foods', JSON.stringify(foods)); }, [foods]);
   useEffect(() => { localStorage.setItem('orders', JSON.stringify(orders)); }, [orders]);
+  useEffect(() => { localStorage.setItem('messages', JSON.stringify(messages)); }, [messages]);
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -246,11 +257,35 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  const sendMessage = (orderId, senderId, text) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return { success: false, message: 'Order not found' };
+
+    // Security Check: Chat only active if Approved/Cooking
+    // And NOT completed/delivered (Read-only)
+    // Actually, user said: "Termination: Once status becomes COMPLETED or ARRIVED... chat must become Read-Only"
+    // So we reject new messages in these states.
+    if (['pending', 'completed', 'delivered_to_shelter', 'rejected'].includes(order.status)) {
+      return { success: false, message: 'Chat is closed for this order status.' };
+    }
+
+    const newMessage = {
+      id: `msg-${Date.now()}`,
+      orderId,
+      senderId,
+      text,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages([...messages, newMessage]);
+    return { success: true };
+  };
+
   return (
     <AppContext.Provider value={{
-      users, currentUser, foods, orders, shelters, withdrawals,
+      users, currentUser, foods, orders, shelters, withdrawals, messages,
       login, logout, register, toggleUserStatus, createAdmin, addFood, updateFood, topUp, placeOrder, updateOrder,
-      addShelter, deleteShelter, requestWithdrawal
+      addShelter, deleteShelter, requestWithdrawal, sendMessage
     }}>
       {children}
     </AppContext.Provider>

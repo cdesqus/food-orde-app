@@ -39,29 +39,31 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                             alignItems: 'center',
                             background: 'rgba(255, 255, 255, 0.05)',
                             borderRadius: '30px',
-                            padding: '4px',
+                            padding: '2px',
                             border: '1px solid rgba(255, 255, 255, 0.1)',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                            boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                            marginLeft: '10px'
                         }}>
                             <button
                                 onClick={() => onRemove(food)}
                                 style={{
-                                    background: 'var(--color-bg-main)', // Use main bg for contrast
+                                    background: 'var(--color-bg-main)',
                                     border: '1px solid var(--color-border)',
                                     borderRadius: '50%',
-                                    width: '32px',
-                                    height: '32px',
+                                    width: '24px',
+                                    height: '24px',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                    color: 'var(--color-text-main)', // Ensure visible text color
-                                    transition: 'all 0.2s'
+                                    color: 'var(--color-text-main)',
+                                    transition: 'all 0.2s',
+                                    padding: 0
                                 }}
                             >
-                                <Minus size={16} />
+                                <Minus size={14} />
                             </button>
                             <span style={{
                                 fontWeight: 'bold',
-                                fontSize: '1rem',
-                                width: '32px',
+                                fontSize: '0.9rem',
+                                width: '24px',
                                 textAlign: 'center',
                                 fontVariantNumeric: 'tabular-nums'
                             }}>{quantity}</span>
@@ -71,14 +73,15 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                                     background: 'var(--color-electric-blue)',
                                     border: 'none',
                                     borderRadius: '50%',
-                                    width: '32px',
-                                    height: '32px',
+                                    width: '24px',
+                                    height: '24px',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                                     color: 'black',
-                                    boxShadow: '0 0 10px rgba(46, 213, 115, 0.2)'
+                                    boxShadow: '0 0 10px rgba(46, 213, 115, 0.2)',
+                                    padding: 0
                                 }}
                             >
-                                <Plus size={16} />
+                                <Plus size={14} />
                             </button>
                         </div>
                     ) : (
@@ -88,21 +91,22 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                                 background: 'var(--color-electric-blue)',
                                 border: 'none',
                                 borderRadius: '12px',
-                                padding: '8px 16px',
+                                padding: '6px 12px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
+                                gap: '6px',
                                 cursor: 'pointer',
                                 color: 'black',
                                 fontWeight: 'bold',
-                                fontSize: '0.9rem',
+                                fontSize: '0.8rem',
+                                marginLeft: '10px',
                                 transition: 'transform 0.1s',
                                 boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                             }}
                             onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
                             onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
                         >
-                            Add <Plus size={18} />
+                            Add <Plus size={16} />
                         </button>
                     )}
                 </div>

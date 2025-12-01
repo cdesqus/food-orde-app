@@ -10,6 +10,8 @@ import CustomerHome from './pages/Customer/Home';
 import Cart from './pages/Customer/Cart';
 import MerchantPage from './pages/Customer/MerchantPage';
 import CustomerProfile from './pages/Customer/Profile';
+import OrderDetail from './pages/Customer/OrderDetail';
+import ActiveOrders from './pages/Customer/ActiveOrders';
 import MerchantDashboard from './pages/Merchant/MerchantDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
@@ -55,6 +57,16 @@ function AppRoutes() {
             <Route path="/customer/profile" element={
                 <ProtectedRoute allowedRoles={['customer']}>
                     <CustomerProfile />
+                </ProtectedRoute>
+            } />
+            <Route path="/customer/order/:orderId" element={
+                <ProtectedRoute allowedRoles={['customer']}>
+                    <OrderDetail />
+                </ProtectedRoute>
+            } />
+            <Route path="/customer/active-orders" element={
+                <ProtectedRoute allowedRoles={['customer']}>
+                    <ActiveOrders />
                 </ProtectedRoute>
             } />
 
