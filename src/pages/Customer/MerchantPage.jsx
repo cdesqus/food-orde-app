@@ -134,12 +134,12 @@ const MerchantPage = () => {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    zIndex: 90,
+                    zIndex: 101,
                     boxShadow: '0 8px 20px rgba(46, 204, 113, 0.3)',
                     cursor: 'pointer',
                     border: '1px solid rgba(255,255,255,0.2)',
                     backdropFilter: 'blur(4px)'
-                }} onClick={() => navigate('/cart')}>
+                }} onClick={() => navigate('/customer/cart')}>
                     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.1' }}>
                         <span style={{ fontWeight: '800', color: 'white', fontSize: '0.95rem' }}>{totalItems} Items</span>
                         <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.9)', marginTop: '2px' }}>Rp {totalPrice.toLocaleString()}</span>
