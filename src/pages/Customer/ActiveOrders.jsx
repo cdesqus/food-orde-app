@@ -4,7 +4,7 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import { ClipboardList } from 'lucide-react';
 
 const ActiveOrders = () => {
-    const { currentUser, orders } = useApp();
+    const { currentUser, orders, users } = useApp();
     const navigate = useNavigate();
 
     const activeOrders = orders
@@ -31,32 +31,39 @@ const ActiveOrders = () => {
                             </button>
                         </div>
                     ) : (
-                        activeOrders.map(order => (
-                            <div
-                                key={order.id}
-                                className="glass-panel"
-                                style={{ padding: '1rem', cursor: 'pointer', transition: 'transform 0.2s', borderLeft: '4px solid var(--color-electric-blue)' }}
-                                onClick={() => navigate(`/customer/order/${order.id}`)}
-                                onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
-                                onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
-                            >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <span style={{ fontWeight: 'bold' }}>Order #{order.id.slice(-4)}</span>
-                                    <span style={{
-                                        color: 'var(--color-electric-blue)',
-                                        textTransform: 'capitalize',
-                                        fontWeight: 'bold'
-                                    }}>{order.status.replace(/_/g, ' ')}</span>
+                        activeOrders.map(order => {
+                            const merchant = users.find(u => u.id === order.items[0]?.merchantId);
+                            return (
+                                <div
+                                    key={order.id}
+                                    className="glass-panel"
+                                    style={{ padding: '1rem', cursor: 'pointer', transition: 'transform 0.2s', borderLeft: '4px solid var(--color-electric-blue)' }}
+                                    onClick={() => navigate(`/customer/order/${order.id}`)}
+                                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
+                                    onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{merchant?.name || 'Unknown Merchant'}</span>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Order #{order.id.slice(-4)}</span>
+                                        </div>
+                                        <span style={{
+                                            color: 'var(--color-electric-blue)',
+                                            textTransform: 'capitalize',
+                                            fontWeight: 'bold',
+                                            alignSelf: 'flex-start'
+                                        }}>{order.status.replace(/_/g, ' ')}</span>
+                                    </div>
+                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                                        {new Date(order.timestamp).toLocaleString()}
+                                    </p>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span>{order.items.length} items</span>
+                                        <span style={{ fontWeight: 'bold' }}>Rp {order.total.toLocaleString()}</span>
+                                    </div>
                                 </div>
-                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                                    {new Date(order.timestamp).toLocaleString()}
-                                </p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>{order.items.length} items</span>
-                                    <span style={{ fontWeight: 'bold' }}>Rp {order.total.toLocaleString()}</span>
-                                </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </div>

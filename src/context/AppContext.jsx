@@ -197,6 +197,22 @@ export const AppProvider = ({ children }) => {
     };
 
     setOrders([...orders, newOrder]);
+
+    // Auto-inject summary message
+    const itemsList = cartItems.map(i => `${i.quantity}x ${i.name}`).join(', ');
+    const noteText = notes ? notes : '-';
+    const summaryText = `Order Summary:\n${itemsList}\n\nNote: ${noteText}`;
+
+    const summaryMsg = {
+      id: `msg-${Date.now()}`,
+      orderId: newOrder.id,
+      senderId: currentUser.id,
+      text: summaryText,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, summaryMsg]);
+
     return { success: true };
   };
 
