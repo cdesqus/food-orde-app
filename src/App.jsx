@@ -47,7 +47,7 @@ function AppRoutes() {
                     <Cart />
                 </ProtectedRoute>
             } />
-            <Route path="/customer/merchant/:id" element={
+            <Route path="/customer/merchant/:merchantId" element={
                 <ProtectedRoute allowedRoles={['customer']}>
                     <MerchantPage />
                 </ProtectedRoute>

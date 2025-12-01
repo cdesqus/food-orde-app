@@ -20,7 +20,7 @@ const Home = () => {
 
     const handleFoodClick = (food) => {
         // Redirect to Merchant Page
-        navigate(`/merchant/${food.merchantId}`);
+        navigate(`/customer/merchant/${food.merchantId}`);
     };
 
     return (
