@@ -526,7 +526,7 @@ const MerchantDashboard = () => {
                                             </div>
                                             <div style={{ textAlign: 'right' }}>
                                                 <span style={{
-                                                    color: order.status === 'completed' ? 'var(--color-neon-green)' :
+                                                    color: ['completed', 'cooking', 'accepted', 'delivered_to_shelter'].includes(order.status) ? 'var(--color-neon-green)' :
                                                         order.status === 'pending' ? 'var(--color-electric-blue)' : 'white',
                                                     fontWeight: 'bold', display: 'block', marginBottom: '4px'
                                                 }}>
