@@ -157,7 +157,7 @@ const OrderDetail = () => {
                         </h3>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div className="thin-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {orderMessages.length === 0 ? (
                             <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '2rem', fontSize: '0.9rem' }}>
                                 {isChatDisabled ? 'Chat will open when order is approved.' : 'No messages yet.'}

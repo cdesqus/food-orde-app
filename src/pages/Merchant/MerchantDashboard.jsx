@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const MerchantDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
-    const { currentUser, logout, foods, addFood, updateFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage } = useApp();
+    const { currentUser, logout, foods, addFood, updateFood, deleteFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage, shelters } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'menu' | 'orders'
     const [showAddFood, setShowAddFood] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
@@ -21,6 +21,11 @@ const MerchantDashboard = () => {
     const [showChatModal, setShowChatModal] = useState(false);
     const [activeChatOrder, setActiveChatOrder] = useState(null);
     const [chatMessage, setChatMessage] = useState('');
+
+    // Arrived Modal State
+    const [showArrivedModal, setShowArrivedModal] = useState(false);
+    const [arrivedOrder, setArrivedOrder] = useState(null);
+    const [arrivedPhoto, setArrivedPhoto] = useState('');
 
     // Form State
     const [foodForm, setFoodForm] = useState({
@@ -182,13 +187,25 @@ const MerchantDashboard = () => {
         updateFood(food.id, { active: !food.active });
     };
 
-    const handleOrderAction = (orderId, action) => {
+    const handleOrderAction = (orderId, action, extraData = {}) => {
         // action: 'accepted' | 'rejected' | 'completed'
-        updateOrder(orderId, action);
+        updateOrder(orderId, action, extraData);
 
         if (action === 'delivered_to_shelter') {
             sendMessage(orderId, currentUser.id, "Makanan udah sampe di titik jemput nih! Buruan ambil sebelum dingin ya! 📍🏃💨");
         }
+    };
+
+    const handleArrivedSubmit = (e) => {
+        e.preventDefault();
+        if (!arrivedPhoto) {
+            alert('Please upload a photo proof');
+            return;
+        }
+        handleOrderAction(arrivedOrder.id, 'delivered_to_shelter', { proofPhoto: arrivedPhoto });
+        setShowArrivedModal(false);
+        setArrivedOrder(null);
+        setArrivedPhoto('');
     };
 
     const inputStyle = {
@@ -331,7 +348,7 @@ const MerchantDashboard = () => {
                 {activeTab === 'menu' && (
                     <div>
                         <button
-                            onClick={() => { setShowAddFood(!showAddFood); setEditingFood(null); setFoodForm({ name: '', price: '', description: '', category: 'Fast Food', photos: [''], active: true }); }}
+                            onClick={() => { setShowAddFood(true); setEditingFood(null); setFoodForm({ name: '', price: '', description: '', category: 'Fast Food', photos: [''], active: true }); }}
                             className="glass-panel"
                             style={{
                                 width: '100%', padding: '15px', marginBottom: '20px',
@@ -340,80 +357,94 @@ const MerchantDashboard = () => {
                                 cursor: 'pointer'
                             }}
                         >
-                            <Plus /> {showAddFood ? 'Cancel' : 'Add New Item'}
+                            <Plus /> Add New Item
                         </button>
 
+                        {/* Food Form Modal */}
                         {showAddFood && (
-                            <div className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
-                                <h3 style={{ marginBottom: '15px' }}>{editingFood ? 'Edit Item' : 'Add New Item'}</h3>
-                                <form onSubmit={handleSubmitFood} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    <input placeholder="Item Name" value={foodForm.name} onChange={e => setFoodForm({ ...foodForm, name: e.target.value })} required style={inputStyle} />
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <input placeholder="Price" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
-                                        <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={inputStyle}>
-                                            <option>Fast Food</option>
-                                            <option>Drinks</option>
-                                            <option>Dessert</option>
-                                            <option>Main Course</option>
-                                            <option>Snacks</option>
-                                        </select>
-                                    </div>
-                                    <textarea placeholder="Description" value={foodForm.description} onChange={e => setFoodForm({ ...foodForm, description: e.target.value })} style={{ ...inputStyle, minHeight: '80px' }} />
+                            <div style={{
+                                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                                backdropFilter: 'blur(5px)'
+                            }}>
+                                <div className="glass-panel" style={{ width: '90%', maxWidth: '500px', padding: '20px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                                    <button
+                                        onClick={() => setShowAddFood(false)}
+                                        style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                                    >
+                                        <X size={24} />
+                                    </button>
 
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Photos (Max 5)</label>
-                                        {foodForm.photos.map((photo, idx) => (
-                                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '15px', padding: '10px', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => {
-                                                                    handlePhotoChange(idx, reader.result);
-                                                                };
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }}
-                                                        style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}
-                                                    />
-                                                    {idx > 0 && (
-                                                        <button type="button" onClick={() => {
-                                                            const newPhotos = foodForm.photos.filter((_, i) => i !== idx);
-                                                            setFoodForm({ ...foodForm, photos: newPhotos });
-                                                        }} style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)' }}>
-                                                            <Trash2 size={20} />
-                                                        </button>
+                                    <h3 style={{ marginBottom: '15px' }}>{editingFood ? 'Edit Item' : 'Add New Item'}</h3>
+                                    <form onSubmit={handleSubmitFood} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                        <input placeholder="Item Name" value={foodForm.name} onChange={e => setFoodForm({ ...foodForm, name: e.target.value })} required style={inputStyle} />
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <input placeholder="Price" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
+                                            <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={inputStyle}>
+                                                <option>Fast Food</option>
+                                                <option>Drinks</option>
+                                                <option>Dessert</option>
+                                                <option>Main Course</option>
+                                                <option>Snacks</option>
+                                            </select>
+                                        </div>
+                                        <textarea placeholder="Description" value={foodForm.description} onChange={e => setFoodForm({ ...foodForm, description: e.target.value })} style={{ ...inputStyle, minHeight: '80px' }} />
+
+                                        <div>
+                                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Photos (Max 5)</label>
+                                            {foodForm.photos.map((photo, idx) => (
+                                                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '15px', padding: '10px', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => {
+                                                                        handlePhotoChange(idx, reader.result);
+                                                                    };
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }}
+                                                            style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}
+                                                        />
+                                                        {idx > 0 && (
+                                                            <button type="button" onClick={() => {
+                                                                const newPhotos = foodForm.photos.filter((_, i) => i !== idx);
+                                                                setFoodForm({ ...foodForm, photos: newPhotos });
+                                                            }} style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)' }}>
+                                                                <Trash2 size={20} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>OR URL:</span>
+                                                        <input
+                                                            placeholder="https://..."
+                                                            value={photo}
+                                                            onChange={e => handlePhotoChange(idx, e.target.value)}
+                                                            style={{ ...inputStyle, flex: 1 }}
+                                                        />
+                                                    </div>
+                                                    {photo && (
+                                                        <img src={photo} alt="Preview" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '5px' }} />
                                                     )}
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>OR URL:</span>
-                                                    <input
-                                                        placeholder="https://..."
-                                                        value={photo}
-                                                        onChange={e => handlePhotoChange(idx, e.target.value)}
-                                                        style={{ ...inputStyle, flex: 1 }}
-                                                    />
-                                                </div>
-                                                {photo && (
-                                                    <img src={photo} alt="Preview" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '5px' }} />
-                                                )}
-                                            </div>
-                                        ))}
-                                        {foodForm.photos.length < 5 && (
-                                            <button type="button" onClick={addPhotoField} style={{ fontSize: '0.9rem', color: 'var(--color-primary)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                <Plus size={16} /> Add another photo
-                                            </button>
-                                        )}
-                                    </div>
+                                            ))}
+                                            {foodForm.photos.length < 5 && (
+                                                <button type="button" onClick={addPhotoField} style={{ fontSize: '0.9rem', color: 'var(--color-primary)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <Plus size={16} /> Add another photo
+                                                </button>
+                                            )}
+                                        </div>
 
-                                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                        <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingFood ? 'Update Item' : 'Add Item'}</button>
-                                    </div>
-                                </form>
+                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                            <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingFood ? 'Update Item' : 'Add Item'}</button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         )}
 
@@ -430,6 +461,13 @@ const MerchantDashboard = () => {
                                                 </button>
                                                 <button onClick={() => startEdit(food)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-electric-blue)' }}>
                                                     <Edit2 size={20} />
+                                                </button>
+                                                <button onClick={() => {
+                                                    if (window.confirm('Are you sure you want to delete this item?')) {
+                                                        deleteFood(food.id);
+                                                    }
+                                                }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-hot-pink)' }}>
+                                                    <Trash2 size={20} />
                                                 </button>
                                             </div>
                                         </div>
@@ -460,13 +498,24 @@ const MerchantDashboard = () => {
                                                 <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>#{order.id.slice(-6)}</span>
                                                 <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{customer?.name || 'Unknown Customer'}</span>
                                             </div>
-                                            <span style={{
-                                                color: order.status === 'completed' ? 'var(--color-neon-green)' :
-                                                    order.status === 'pending' ? 'var(--color-electric-blue)' : 'white',
-                                                fontWeight: 'bold'
-                                            }}>
-                                                {order.status.toUpperCase()}
-                                            </span>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <span style={{
+                                                    color: order.status === 'completed' ? 'var(--color-neon-green)' :
+                                                        order.status === 'pending' ? 'var(--color-electric-blue)' : 'white',
+                                                    fontWeight: 'bold', display: 'block', marginBottom: '4px'
+                                                }}>
+                                                    {order.status.toUpperCase()}
+                                                </span>
+                                                {/* Location Display */}
+                                                {(() => {
+                                                    const shelter = shelters.find(s => s.id === order.shelterId);
+                                                    return shelter ? (
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--color-hot-pink)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            📍 {shelter.name}
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+                                            </div>
                                         </div>
 
                                         <div style={{ marginBottom: '10px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px' }}>
@@ -525,7 +574,10 @@ const MerchantDashboard = () => {
                                                     </>
                                                 )}
                                                 {order.status === 'cooking' && (
-                                                    <button onClick={() => handleOrderAction(order.id, 'delivered_to_shelter')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-electric-blue)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Mark Arrived at Shelter</button>
+                                                    <button onClick={() => {
+                                                        setArrivedOrder(order);
+                                                        setShowArrivedModal(true);
+                                                    }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-electric-blue)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Mark Arrived at Shelter</button>
                                                 )}
                                                 {order.status === 'delivered_to_shelter' && (
                                                     <button onClick={() => handleOrderAction(order.id, 'completed')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-primary)', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Complete Order</button>
@@ -639,7 +691,7 @@ const MerchantDashboard = () => {
                                 </button>
                             </div>
 
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div className="thin-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 {messages.filter(m => m.orderId === activeChatOrder.id).length === 0 ? (
                                     <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '20px' }}>No messages yet.</div>
                                 ) : (
@@ -722,6 +774,65 @@ const MerchantDashboard = () => {
                     </div>
                 )
             }
+            {/* Arrived Photo Modal */}
+            {showArrivedModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+                    backdropFilter: 'blur(5px)'
+                }}>
+                    <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
+                        <button
+                            onClick={() => { setShowArrivedModal(false); setArrivedOrder(null); setArrivedPhoto(''); }}
+                            style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                        >
+                            <X size={24} />
+                        </button>
+
+                        <h3 style={{ marginBottom: '15px' }}>Proof of Arrival 📸</h3>
+                        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
+                            Please upload a photo of the food at the shelter to notify the customer.
+                        </p>
+
+                        <form onSubmit={handleArrivedSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div style={{ padding: '20px', border: '2px dashed var(--color-border)', borderRadius: '12px', textAlign: 'center' }}>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setArrivedPhoto(reader.result);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                    style={{ display: 'none' }}
+                                    id="arrived-photo-upload"
+                                />
+                                <label htmlFor="arrived-photo-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                                    {arrivedPhoto ? (
+                                        <img src={arrivedPhoto} alt="Proof" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
+                                    ) : (
+                                        <>
+                                            <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Plus size={24} color="var(--color-primary)" />
+                                            </div>
+                                            <span style={{ color: 'var(--color-primary)' }}>Tap to take photo</span>
+                                        </>
+                                    )}
+                                </label>
+                            </div>
+
+                            <button type="submit" className="btn-primary" disabled={!arrivedPhoto} style={{ opacity: arrivedPhoto ? 1 : 0.5 }}>
+                                Submit & Notify Customer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

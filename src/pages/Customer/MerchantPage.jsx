@@ -20,6 +20,16 @@ const MerchantPage = () => {
     }, [cart]);
 
     const handleAddToCart = (food) => {
+        if (cart.length > 0) {
+            const currentMerchantId = cart[0].merchantId;
+            if (currentMerchantId !== food.merchantId) {
+                if (window.confirm("You can only order from one merchant at a time. Clear current cart and start a new order?")) {
+                    setCart([{ ...food, quantity: 1 }]);
+                }
+                return;
+            }
+        }
+
         setCart(prevCart => {
             const existingItem = prevCart.find(item => item.id === food.id);
             if (existingItem) {

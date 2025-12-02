@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X } from 'lucide-react';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const AdminDashboard = () => {
-    const { currentUser, logout, users, toggleUserStatus, createAdmin, orders, shelters, addShelter, deleteShelter } = useApp();
+    const { currentUser, logout, users, toggleUserStatus, createAdmin, updateUser, deleteUser, orders, shelters, addShelter, updateShelter, deleteShelter } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'verification' | 'users' | 'locations'
     const [showAddAdmin, setShowAddAdmin] = useState(false);
     const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
@@ -12,6 +12,16 @@ const AdminDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
     const [newShelterName, setNewShelterName] = useState('');
     const [newShelterDetail, setNewShelterDetail] = useState('');
+
+    // Edit User State
+    const [editingUser, setEditingUser] = useState(null);
+    const [showEditUserModal, setShowEditUserModal] = useState(false);
+    const [editUserForm, setEditUserForm] = useState({ name: '', email: '', password: '' });
+
+    // Edit Shelter State
+    const [editingShelter, setEditingShelter] = useState(null);
+    const [showEditShelterModal, setShowEditShelterModal] = useState(false);
+    const [editShelterForm, setEditShelterForm] = useState({ name: '', detail: '' });
 
     const pendingMerchants = users.filter(u => u.role === 'merchant' && !u.approved);
     const pendingCustomers = users.filter(u => u.role === 'customer' && !u.approved);
@@ -179,52 +189,76 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Chart Section */}
-                    <div className="glass-panel" style={{ padding: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h2 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <TrendingUp size={20} /> Live Revenue Analytics
-                            </h2>
-                            <div style={{ display: 'flex', gap: '10px', background: 'var(--color-bg-main)', padding: '5px', borderRadius: '20px' }}>
-                                {['week', 'month', 'year'].map(range => (
-                                    <button
-                                        key={range}
-                                        onClick={() => setTimeRange(range)}
-                                        style={{
-                                            padding: '5px 15px',
-                                            borderRadius: '15px',
-                                            border: 'none',
-                                            background: timeRange === range ? 'var(--color-bg-surface)' : 'transparent',
-                                            color: timeRange === range ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                                            fontWeight: timeRange === range ? 'bold' : 'normal',
-                                            cursor: 'pointer',
-                                            boxShadow: timeRange === range ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
-                                            textTransform: 'capitalize'
-                                        }}
-                                    >
-                                        1 {range}
-                                    </button>
-                                ))}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+                        <div className="glass-panel" style={{ padding: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h2 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <TrendingUp size={20} /> Revenue Trend
+                                </h2>
+                                <div style={{ display: 'flex', gap: '10px', background: 'var(--color-bg-main)', padding: '5px', borderRadius: '20px' }}>
+                                    {['week', 'month', 'year'].map(range => (
+                                        <button
+                                            key={range}
+                                            onClick={() => setTimeRange(range)}
+                                            style={{
+                                                padding: '5px 15px',
+                                                borderRadius: '15px',
+                                                border: 'none',
+                                                background: timeRange === range ? 'var(--color-bg-surface)' : 'transparent',
+                                                color: timeRange === range ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                                fontWeight: timeRange === range ? 'bold' : 'normal',
+                                                cursor: 'pointer',
+                                                boxShadow: timeRange === range ? '0 2px 5px rgba(0,0,0,0.05)' : 'none',
+                                                textTransform: 'capitalize'
+                                            }}
+                                        >
+                                            1 {range}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div style={{ height: '300px', width: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData}>
+                                        <defs>
+                                            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000}k`} />
+                                        <Tooltip
+                                            contentStyle={{ background: 'var(--color-bg-surface)', border: 'none', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                                            formatter={(value) => [`Rp ${value.toLocaleString()}`, 'Revenue']}
+                                        />
+                                        <Area type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
-                        <div style={{ height: '300px', width: '100%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData}>
-                                    <defs>
-                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000}k`} />
-                                    <Tooltip
-                                        contentStyle={{ background: 'var(--color-bg-surface)', border: 'none', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                                        formatter={(value) => [`Rp ${value.toLocaleString()}`, 'Revenue']}
-                                    />
-                                    <Area type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
+
+                        {/* Revenue per Merchant Chart */}
+                        <div className="glass-panel" style={{ padding: '20px' }}>
+                            <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <BarChart2 size={20} /> Revenue per Merchant
+                            </h2>
+                            <div style={{ height: '300px', width: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={topMerchants} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={100} tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(255,255,255,0.1)' }}
+                                            contentStyle={{ background: 'var(--color-bg-surface)', border: 'none', borderRadius: '10px' }}
+                                            formatter={(value) => [`Rp ${value.toLocaleString()}`, 'Sales']}
+                                        />
+                                        <Bar dataKey="sales" fill="var(--color-secondary)" radius={[0, 4, 4, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
 
@@ -233,27 +267,33 @@ const AdminDashboard = () => {
                         <div className="glass-panel" style={{ padding: '20px' }}>
                             <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Recent Activity</h2>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                {orders.slice().reverse().slice(0, 5).map(order => (
-                                    <div key={order.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingBottom: '10px', borderBottom: '1px solid var(--color-border)' }}>
-                                        <div style={{ padding: '10px', borderRadius: '50%', background: 'var(--color-bg-main)', color: 'var(--color-primary)' }}>
-                                            <ShoppingBag size={16} />
+                                {orders.slice().reverse().slice(0, 5).map(order => {
+                                    const customer = users.find(u => u.id === order.customerId);
+                                    const merchant = users.find(u => u.id === order.items[0]?.merchantId);
+                                    return (
+                                        <div key={order.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingBottom: '10px', borderBottom: '1px solid var(--color-border)' }}>
+                                            <div style={{ padding: '10px', borderRadius: '50%', background: 'var(--color-bg-main)', color: 'var(--color-primary)' }}>
+                                                <ShoppingBag size={16} />
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                                    {customer?.name || 'User'} ordered from {merchant?.name || 'Merchant'}
+                                                </p>
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{new Date(order.timestamp).toLocaleString()}</p>
+                                            </div>
+                                            <div style={{ marginLeft: 'auto', fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                                                +Rp {order.total.toLocaleString()}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>New Order #{order.id.slice(-4)}</p>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{new Date(order.timestamp).toLocaleString()}</p>
-                                        </div>
-                                        <div style={{ marginLeft: 'auto', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                            +Rp {order.total.toLocaleString()}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {orders.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>No recent activity.</p>}
                             </div>
                         </div>
 
-                        {/* Top Merchants */}
+                        {/* Top Merchants List */}
                         <div className="glass-panel" style={{ padding: '20px' }}>
-                            <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Top Merchants</h2>
+                            <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Top Merchants Leaderboard</h2>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 {topMerchants.map((merchant, index) => (
                                     <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -429,24 +469,101 @@ const AdminDashboard = () => {
                                             Status: {user.approved ? 'Active' : 'Banned/Pending'}
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => toggleUserStatus(user.id, !user.approved)}
-                                        style={{
-                                            padding: '0.5rem 1rem',
-                                            fontSize: '0.8rem',
-                                            background: 'transparent',
-                                            border: `1px solid ${user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)'}`,
-                                            color: user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)',
-                                            borderRadius: '20px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        {user.approved ? 'Ban User' : 'Unban / Approve'}
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button
+                                            onClick={() => {
+                                                setEditingUser(user);
+                                                setEditUserForm({ name: user.name, email: user.email, password: user.password });
+                                                setShowEditUserModal(true);
+                                            }}
+                                            style={{ background: 'transparent', border: 'none', color: 'var(--color-electric-blue)', cursor: 'pointer' }}
+                                            title="Edit User"
+                                        >
+                                            <Edit size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => toggleUserStatus(user.id, !user.approved)}
+                                            style={{
+                                                padding: '0.5rem 1rem',
+                                                fontSize: '0.8rem',
+                                                background: 'transparent',
+                                                border: `1px solid ${user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)'}`,
+                                                color: user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)',
+                                                borderRadius: '20px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {user.approved ? 'Ban' : 'Approve'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm(`Are you sure you want to delete ${user.name}? This cannot be undone.`)) {
+                                                    deleteUser(user.id);
+                                                }
+                                            }}
+                                            style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)', cursor: 'pointer' }}
+                                            title="Delete User"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
                     </div>
+                    {/* Edit User Modal */}
+                    {showEditUserModal && (
+                        <div style={{
+                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+                            backdropFilter: 'blur(5px)'
+                        }}>
+                            <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
+                                <button
+                                    onClick={() => setShowEditUserModal(false)}
+                                    style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                                >
+                                    <X size={24} />
+                                </button>
+                                <h3 style={{ marginBottom: '15px' }}>Edit User</h3>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    updateUser(editingUser.id, editUserForm);
+                                    setShowEditUserModal(false);
+                                    alert('User updated!');
+                                }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Name</label>
+                                        <input
+                                            value={editUserForm.name}
+                                            onChange={e => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Email</label>
+                                        <input
+                                            value={editUserForm.email}
+                                            onChange={e => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Password (Reset)</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <Key size={16} color="var(--color-text-muted)" />
+                                            <input
+                                                value={editUserForm.password}
+                                                onChange={e => setEditUserForm({ ...editUserForm, password: e.target.value })}
+                                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="btn-primary">Save Changes</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </section>
             )}
 
@@ -519,25 +636,83 @@ const AdminDashboard = () => {
                                         {shelter.detail && <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{shelter.detail}</div>}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        if (window.confirm('Delete this location?')) {
-                                            deleteShelter(shelter.id);
-                                        }
-                                    }}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--color-hot-pink)',
-                                        cursor: 'pointer',
-                                        padding: '5px'
-                                    }}
-                                >
-                                    <LogOut size={18} />
-                                </button>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => {
+                                            setEditingShelter(shelter);
+                                            setEditShelterForm({ name: shelter.name, detail: shelter.detail || '' });
+                                            setShowEditShelterModal(true);
+                                        }}
+                                        style={{ background: 'transparent', border: 'none', color: 'var(--color-electric-blue)', cursor: 'pointer' }}
+                                        title="Edit Location"
+                                    >
+                                        <Edit size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm('Delete this location?')) {
+                                                deleteShelter(shelter.id);
+                                            }
+                                        }}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: 'var(--color-hot-pink)',
+                                            cursor: 'pointer',
+                                            padding: '5px'
+                                        }}
+                                        title="Delete Location"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
+
+                    {/* Edit Shelter Modal */}
+                    {showEditShelterModal && (
+                        <div style={{
+                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+                            backdropFilter: 'blur(5px)'
+                        }}>
+                            <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
+                                <button
+                                    onClick={() => setShowEditShelterModal(false)}
+                                    style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+                                >
+                                    <X size={24} />
+                                </button>
+                                <h3 style={{ marginBottom: '15px' }}>Edit Location</h3>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    updateShelter(editingShelter.id, editShelterForm);
+                                    setShowEditShelterModal(false);
+                                    alert('Location updated!');
+                                }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Location Name</label>
+                                        <input
+                                            value={editShelterForm.name}
+                                            onChange={e => setEditShelterForm({ ...editShelterForm, name: e.target.value })}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Detail</label>
+                                        <input
+                                            value={editShelterForm.detail}
+                                            onChange={e => setEditShelterForm({ ...editShelterForm, detail: e.target.value })}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                        />
+                                    </div>
+                                    <button type="submit" className="btn-primary">Save Changes</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </section>
             )}
         </div>

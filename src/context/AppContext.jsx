@@ -144,6 +144,14 @@ export const AppProvider = ({ children }) => {
     setUsers(users.map(u => u.id === id ? { ...u, approved: status } : u));
   };
 
+  const updateUser = (id, updates) => {
+    setUsers(users.map(u => u.id === id ? { ...u, ...updates } : u));
+  };
+
+  const deleteUser = (id) => {
+    setUsers(users.filter(u => u.id !== id));
+  };
+
   const createAdmin = (adminData) => {
     if (users.find(u => u.email === adminData.email)) {
       return { success: false, message: 'Email already exists' };
@@ -160,6 +168,10 @@ export const AppProvider = ({ children }) => {
 
   const updateFood = (id, updates) => {
     setFoods(foods.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
+  const deleteFood = (id) => {
+    setFoods(foods.filter(f => f.id !== id));
   };
 
   const topUp = (amount) => {
@@ -216,8 +228,8 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  const updateOrder = (orderId, status) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status } : o));
+  const updateOrder = (orderId, status, additionalData = {}) => {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status, ...additionalData } : o));
   };
 
   const [shelters, setShelters] = useState(() => {
@@ -239,6 +251,10 @@ export const AppProvider = ({ children }) => {
   const addShelter = (name, detail) => {
     const newShelter = { id: `s${Date.now()}`, name, detail };
     setShelters([...shelters, newShelter]);
+  };
+
+  const updateShelter = (id, updates) => {
+    setShelters(shelters.map(s => s.id === id ? { ...s, ...updates } : s));
   };
 
   const deleteShelter = (id) => {
@@ -300,8 +316,8 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider value={{
       users, currentUser, foods, orders, shelters, withdrawals, messages,
-      login, logout, register, toggleUserStatus, createAdmin, addFood, updateFood, topUp, placeOrder, updateOrder,
-      addShelter, deleteShelter, requestWithdrawal, sendMessage
+      login, logout, register, toggleUserStatus, createAdmin, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
+      addShelter, updateShelter, deleteShelter, requestWithdrawal, sendMessage
     }}>
       {children}
     </AppContext.Provider>
