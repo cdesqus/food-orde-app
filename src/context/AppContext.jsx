@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const AppContext = createContext();
 
@@ -289,7 +290,7 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
-  const sendMessage = (orderId, senderId, text) => {
+  const sendMessage = (orderId, senderId, text, image = null) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return { success: false, message: 'Order not found' };
 
@@ -306,6 +307,7 @@ export const AppProvider = ({ children }) => {
       orderId,
       senderId,
       text,
+      image,
       timestamp: new Date().toISOString()
     };
 
@@ -313,13 +315,57 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  // Global Modal State
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    isAlert: false
+  });
+
+  const showConfirm = (title, message, onConfirm) => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+        setModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isAlert: false
+    });
+  };
+
+  const showAlert = (title, message, onConfirm = null) => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        if (onConfirm) onConfirm();
+        setModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isAlert: true
+    });
+  };
+
   return (
     <AppContext.Provider value={{
       users, currentUser, foods, orders, shelters, withdrawals, messages,
       login, logout, register, toggleUserStatus, createAdmin, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
-      addShelter, updateShelter, deleteShelter, requestWithdrawal, sendMessage
+      addShelter, updateShelter, deleteShelter, requestWithdrawal, sendMessage,
+      showAlert, showConfirm
     }}>
       {children}
+      <ConfirmationModal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        onConfirm={modal.onConfirm}
+        onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
+        isAlert={modal.isAlert}
+      />
     </AppContext.Provider>
   );
 };

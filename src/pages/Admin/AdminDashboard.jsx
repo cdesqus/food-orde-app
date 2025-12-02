@@ -1,13 +1,34 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X } from 'lucide-react';
+import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X, FileText, Download } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
+import ConfirmationModal from '../../components/ConfirmationModal';
+import Modal from '../../components/Modal';
 
 const AdminDashboard = () => {
     const { currentUser, logout, users, toggleUserStatus, createAdmin, updateUser, deleteUser, orders, shelters, addShelter, updateShelter, deleteShelter } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'verification' | 'users' | 'locations'
     const [showAddAdmin, setShowAddAdmin] = useState(false);
     const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
+
+    // Modal State
+    const [modal, setModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        isAlert: false
+    });
+
+    const showConfirm = (title, message, onConfirm) => {
+        setModal({ isOpen: true, title, message, onConfirm, isAlert: false });
+    };
+
+    const showAlert = (title, message) => {
+        setModal({ isOpen: true, title, message, onConfirm: () => setModal(prev => ({ ...prev, isOpen: false })), isAlert: true });
+    };
+
     const [userFilter, setUserFilter] = useState('all'); // 'all' | 'merchant' | 'customer' | 'admin'
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
     const [newShelterName, setNewShelterName] = useState('');
@@ -22,6 +43,9 @@ const AdminDashboard = () => {
     const [editingShelter, setEditingShelter] = useState(null);
     const [showEditShelterModal, setShowEditShelterModal] = useState(false);
     const [editShelterForm, setEditShelterForm] = useState({ name: '', detail: '' });
+
+    // Report State
+    const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
     const pendingMerchants = users.filter(u => u.role === 'merchant' && !u.approved);
     const pendingCustomers = users.filter(u => u.role === 'customer' && !u.approved);
@@ -109,9 +133,9 @@ const AdminDashboard = () => {
         if (result.success) {
             setShowAddAdmin(false);
             setAdminForm({ name: '', email: '', password: '' });
-            alert('Admin added successfully!');
+            showAlert('Success', 'Admin added successfully!');
         } else {
-            alert(result.message);
+            showAlert('Error', result.message);
         }
     };
 
@@ -142,6 +166,9 @@ const AdminDashboard = () => {
                 </button>
                 <button onClick={() => setActiveTab('locations')} className={activeTab === 'locations' ? 'btn-primary' : 'glass-panel'} style={{ flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', minWidth: '120px' }}>
                     <MapPin size={18} /> Locations
+                </button>
+                <button onClick={() => setActiveTab('reports')} className={activeTab === 'reports' ? 'btn-primary' : 'glass-panel'} style={{ flex: 1, padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', minWidth: '120px' }}>
+                    <FileText size={18} /> Reports
                 </button>
             </div>
 
@@ -497,9 +524,14 @@ const AdminDashboard = () => {
                                         </button>
                                         <button
                                             onClick={() => {
-                                                if (window.confirm(`Are you sure you want to delete ${user.name}? This cannot be undone.`)) {
-                                                    deleteUser(user.id);
-                                                }
+                                                showConfirm(
+                                                    'Delete User',
+                                                    `Are you sure you want to delete ${user.name}? This cannot be undone.`,
+                                                    () => {
+                                                        deleteUser(user.id);
+                                                        setModal(prev => ({ ...prev, isOpen: false }));
+                                                    }
+                                                );
                                             }}
                                             style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)', cursor: 'pointer' }}
                                             title="Delete User"
@@ -512,58 +544,47 @@ const AdminDashboard = () => {
                         )}
                     </div>
                     {/* Edit User Modal */}
-                    {showEditUserModal && (
-                        <div style={{
-                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
-                            backdropFilter: 'blur(5px)'
-                        }}>
-                            <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
-                                <button
-                                    onClick={() => setShowEditUserModal(false)}
-                                    style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                                >
-                                    <X size={24} />
-                                </button>
-                                <h3 style={{ marginBottom: '15px' }}>Edit User</h3>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    updateUser(editingUser.id, editUserForm);
-                                    setShowEditUserModal(false);
-                                    alert('User updated!');
-                                }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Name</label>
-                                        <input
-                                            value={editUserForm.name}
-                                            onChange={e => setEditUserForm({ ...editUserForm, name: e.target.value })}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Email</label>
-                                        <input
-                                            value={editUserForm.email}
-                                            onChange={e => setEditUserForm({ ...editUserForm, email: e.target.value })}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Password (Reset)</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <Key size={16} color="var(--color-text-muted)" />
-                                            <input
-                                                value={editUserForm.password}
-                                                onChange={e => setEditUserForm({ ...editUserForm, password: e.target.value })}
-                                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
-                                            />
-                                        </div>
-                                    </div>
-                                    <button type="submit" className="btn-primary">Save Changes</button>
-                                </form>
+                    <Modal
+                        isOpen={showEditUserModal}
+                        onClose={() => setShowEditUserModal(false)}
+                        title="Edit User"
+                    >
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            updateUser(editingUser.id, editUserForm);
+                            setShowEditUserModal(false);
+                            showAlert('Success', 'User updated successfully!');
+                        }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Name</label>
+                                <input
+                                    value={editUserForm.name}
+                                    onChange={e => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                />
                             </div>
-                        </div>
-                    )}
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Email</label>
+                                <input
+                                    value={editUserForm.email}
+                                    onChange={e => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Password (Reset)</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <Key size={16} color="#006400" />
+                                    <input
+                                        value={editUserForm.password}
+                                        onChange={e => setEditUserForm({ ...editUserForm, password: e.target.value })}
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                    />
+                                </div>
+                            </div>
+                            <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Save Changes</button>
+                        </form>
+                    </Modal>
                 </section>
             )}
 
@@ -650,9 +671,14 @@ const AdminDashboard = () => {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (window.confirm('Delete this location?')) {
-                                                deleteShelter(shelter.id);
-                                            }
+                                            showConfirm(
+                                                'Delete Location',
+                                                'Are you sure you want to delete this location?',
+                                                () => {
+                                                    deleteShelter(shelter.id);
+                                                    setModal(prev => ({ ...prev, isOpen: false }));
+                                                }
+                                            );
                                         }}
                                         style={{
                                             background: 'transparent',
@@ -671,50 +697,191 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Edit Shelter Modal */}
-                    {showEditShelterModal && (
-                        <div style={{
-                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
-                            backdropFilter: 'blur(5px)'
-                        }}>
-                            <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
-                                <button
-                                    onClick={() => setShowEditShelterModal(false)}
-                                    style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                                >
-                                    <X size={24} />
-                                </button>
-                                <h3 style={{ marginBottom: '15px' }}>Edit Location</h3>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    updateShelter(editingShelter.id, editShelterForm);
-                                    setShowEditShelterModal(false);
-                                    alert('Location updated!');
-                                }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Location Name</label>
-                                        <input
-                                            value={editShelterForm.name}
-                                            onChange={e => setEditShelterForm({ ...editShelterForm, name: e.target.value })}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Detail</label>
-                                        <input
-                                            value={editShelterForm.detail}
-                                            onChange={e => setEditShelterForm({ ...editShelterForm, detail: e.target.value })}
-                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
-                                        />
-                                    </div>
-                                    <button type="submit" className="btn-primary">Save Changes</button>
-                                </form>
+                    <Modal
+                        isOpen={showEditShelterModal}
+                        onClose={() => setShowEditShelterModal(false)}
+                        title="Edit Location"
+                    >
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            updateShelter(editingShelter.id, editShelterForm);
+                            setShowEditShelterModal(false);
+                            showAlert('Success', 'Location updated successfully!');
+                        }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Location Name</label>
+                                <input
+                                    value={editShelterForm.name}
+                                    onChange={e => setEditShelterForm({ ...editShelterForm, name: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                    required
+                                />
                             </div>
-                        </div>
-                    )}
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Detail</label>
+                                <input
+                                    value={editShelterForm.detail}
+                                    onChange={e => setEditShelterForm({ ...editShelterForm, detail: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                />
+                            </div>
+                            <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Save Changes</button>
+                        </form>
+                    </Modal>
                 </section>
             )}
+
+            {/* REPORTS TAB */}
+            {activeTab === 'reports' && (
+                <section>
+                    <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Monthly Merchant Revenue Report</h2>
+
+                    <div className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <label style={{ fontWeight: 'bold' }}>Period:</label>
+                                <select
+                                    value={reportMonth.split('-')[1]}
+                                    onChange={(e) => setReportMonth(`${reportMonth.split('-')[0]}-${e.target.value}`)}
+                                    style={{
+                                        padding: '8px',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-surface)',
+                                        color: 'var(--color-text-main)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <select
+                                    value={reportMonth.split('-')[0]}
+                                    onChange={(e) => setReportMonth(`${e.target.value}-${reportMonth.split('-')[1]}`)}
+                                    style={{
+                                        padding: '8px',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-surface)',
+                                        color: 'var(--color-text-main)',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    const reportData = users
+                                        .filter(u => u.role === 'merchant')
+                                        .map((merchant, index) => {
+                                            const merchantOrders = orders.filter(o =>
+                                                o.status === 'completed' &&
+                                                o.timestamp.startsWith(reportMonth) &&
+                                                o.items.some(i => i.merchantId === merchant.id)
+                                            );
+
+                                            const totalRevenue = merchantOrders.reduce((sum, o) => sum + o.total, 0);
+                                            // Assuming 0% fee for now as per requirement "Optional"
+                                            const fee = 0;
+                                            const netPayout = totalRevenue - fee;
+
+                                            return {
+                                                'No.': index + 1,
+                                                'Merchant Name': merchant.name,
+                                                'Total Completed Orders': merchantOrders.length,
+                                                'Total Revenue (Rp)': totalRevenue,
+                                                'Commission/Fee (Rp)': fee,
+                                                'Net Payout (Rp)': netPayout
+                                            };
+                                        });
+
+                                    const ws = XLSX.utils.json_to_sheet(reportData);
+                                    const wb = XLSX.utils.book_new();
+                                    XLSX.utils.book_append_sheet(wb, ws, "Revenue Report");
+                                    XLSX.writeFile(wb, `Revenue_Report_${reportMonth}.xlsx`);
+                                }}
+                                className="btn-primary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                <Download size={18} /> Export to Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                    <th style={{ padding: '15px' }}>No.</th>
+                                    <th style={{ padding: '15px' }}>Merchant Name</th>
+                                    <th style={{ padding: '15px', textAlign: 'center' }}>Completed Orders</th>
+                                    <th style={{ padding: '15px', textAlign: 'right' }}>Total Revenue</th>
+                                    <th style={{ padding: '15px', textAlign: 'right' }}>Net Payout</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {users
+                                    .filter(u => u.role === 'merchant')
+                                    .map((merchant, index) => {
+                                        const merchantOrders = orders.filter(o =>
+                                            o.status === 'completed' &&
+                                            o.timestamp.startsWith(reportMonth) &&
+                                            o.items.some(i => i.merchantId === merchant.id)
+                                        );
+
+                                        const totalRevenue = merchantOrders.reduce((sum, o) => sum + o.total, 0);
+                                        const fee = 0;
+                                        const netPayout = totalRevenue - fee;
+
+                                        return (
+                                            <tr key={merchant.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '15px' }}>{index + 1}</td>
+                                                <td style={{ padding: '15px', fontWeight: '500' }}>{merchant.name}</td>
+                                                <td style={{ padding: '15px', textAlign: 'center' }}>{merchantOrders.length}</td>
+                                                <td style={{ padding: '15px', textAlign: 'right', color: 'var(--color-neon-green)' }}>
+                                                    Rp {totalRevenue.toLocaleString()}
+                                                </td>
+                                                <td style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold' }}>
+                                                    Rp {netPayout.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                {users.filter(u => u.role === 'merchant').length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                            No merchants found.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
+
+            <ConfirmationModal
+                isOpen={modal.isOpen}
+                title={modal.title}
+                message={modal.message}
+                onConfirm={modal.onConfirm}
+                onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
+                isAlert={modal.isAlert}
+            />
         </div>
     );
 };

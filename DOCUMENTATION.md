@@ -32,6 +32,7 @@
 *   **Order Management**:
     *   Receive incoming orders.
     *   **Accept** or **Reject** orders.
+    *   **Chat**: Communicate with customers using **Quick Replies** and image attachments.
     *   Mark orders as **Completed** once delivered.
 *   **Financials**:
     *   View "Available Balance" (Revenue from completed orders).
@@ -39,6 +40,7 @@
 
 ### 🛡️ Admin
 *   **Dashboard**: Comprehensive overview of platform health (Total Users, Active Merchants, Total Orders, Total Revenue).
+*   **Reports**: Export monthly sales reports to Excel.
 *   **User Verification**:
     *   Review pending Merchant and Customer registrations.
     *   **Approve** or **Ban** users.
@@ -61,7 +63,7 @@ This section outlines the core user journeys, designed to guide UX/UI developmen
 | **2. Selection** | User clicks **"Add to Cart"** on an item. | **Logic**: Check `cart[0].merchantId` vs `newItem.merchantId`.<br>**UX (Pass)**: Toast "Added to cart". Cart counter +1.<br>**UX (Fail)**: **Alert Modal**: "Different Merchant. Clear cart?" |
 | **3. Checkout** | User opens Cart, selects **Shelter**, and clicks **Checkout**. | **UI**: Dropdown for `shelters`. Total price calculation.<br>**System**: Validates balance (if Wallet). Creates `order` object. |
 | **4. Waiting** | User waits for food. | **UI**: Order Detail page shows Status Stepper.<br>**States**: `Pending` ➝ `Cooking` ➝ `Arrived`. |
-| **5. Chatting** | User sends a message during "Cooking" phase. | **UI**: Chat window enabled.<br>**System**: Pushes message to `messages` array. |
+| **5. Chatting** | User sends a message during "Cooking" phase. | **UI**: Chat window enabled with **Digital Receipt** history.<br>**System**: Pushes message to `messages` array. |
 | **6. Pickup** | User sees "Arrived" status. | **UI**: Green notification card: "Food is waiting at [Location]!". |
 
 ### 4.2. Merchant Journey: Fulfillment
@@ -69,7 +71,7 @@ This section outlines the core user journeys, designed to guide UX/UI developmen
 | :--- | :--- | :--- |
 | **1. Notification** | Merchant receives new order. | **UI**: "Incoming Orders" tab shows red badge.<br>**Card**: Shows items, total, and **Accept/Reject** buttons. |
 | **2. Action** | Merchant clicks **"Accept"**. | **System**: Updates order status to `cooking`.<br>**UI**: Order moves to "Active Orders" list. |
-| **3. Delivery** | Merchant arrives at Shelter and clicks **"Mark Arrived"**. | **UX**: **Photo Upload Modal** opens (Critical Step).<br>**System**: Prevents status update until photo is present. |
+| **3. Delivery** | Merchant arrives at Shelter and clicks **"Mark Arrived"**. | **UX**: **Photo Upload Modal** opens (Critical Step).<br>**System**: Auto-compresses image and prevents status update until photo is present. |
 | **4. Validation** | Merchant takes/uploads photo and submits. | **System**: Updates status to `delivered_to_shelter`.<br>**UI**: Toast "Customer notified". |
 
 ### 4.3. Admin Journey: Management
@@ -169,7 +171,8 @@ graph TD
 3.  **Processing Orders**:
     *   Go to the "Orders" tab.
     *   Click **Accept** on incoming orders.
-    *   **Delivery**: When you arrive at the shelter, click **"Mark Arrived"**. You **MUST** upload a photo of the food at the location to proceed.
+    *   **Chat**: Use "Quick Reply" buttons for faster communication.
+    *   **Delivery**: When you arrive at the shelter, click **"Mark Arrived"**. You **MUST** upload a photo of the food at the location to proceed. The system will automatically compress the image for faster sending.
 4.  **Getting Paid**:
     *   Go to the "Dashboard" tab.
     *   Check your "Available Balance" and "Revenue Charts".
@@ -181,3 +184,4 @@ graph TD
 3.  **Oversight**:
     *   Use the "User List" to **Edit**, **Reset Password**, or **Delete** users.
     *   Monitor the "Revenue per Merchant" chart to identify top performers.
+    *   Go to the **Reports** tab to download monthly transaction data.

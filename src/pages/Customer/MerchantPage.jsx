@@ -7,7 +7,7 @@ import Navbar from '../../components/Navbar';
 
 const MerchantPage = () => {
     const { merchantId } = useParams();
-    const { users, foods } = useApp();
+    const { users, foods, showConfirm } = useApp();
     const navigate = useNavigate();
 
     const [cart, setCart] = useState(() => JSON.parse(localStorage.getItem('cart') || '[]'));
@@ -23,9 +23,9 @@ const MerchantPage = () => {
         if (cart.length > 0) {
             const currentMerchantId = cart[0].merchantId;
             if (currentMerchantId !== food.merchantId) {
-                if (window.confirm("You can only order from one merchant at a time. Clear current cart and start a new order?")) {
+                showConfirm("Different Merchant", "You can only order from one merchant at a time. Clear current cart and start a new order?", () => {
                     setCart([{ ...food, quantity: 1 }]);
-                }
+                });
                 return;
             }
         }

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import { MapPin, Trash, Plus, Minus, CreditCard, QrCode, Wallet } from 'lucide-react';
+import Modal from '../../components/Modal';
 
 const Cart = () => {
-    const { shelters, placeOrder, currentUser } = useApp();
+    const { shelters, placeOrder, currentUser, showAlert } = useApp();
     const [cartItems, setCartItems] = useState([]);
     const [selectedShelter, setSelectedShelter] = useState('');
     const [notes, setNotes] = useState('');
@@ -42,20 +43,20 @@ const Cart = () => {
     const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     const handleCheckout = () => {
-        if (!selectedShelter) return alert('Please select a delivery pinpoint!');
-        if (cartItems.length === 0) return alert('Your cart is empty!');
+        if (!selectedShelter) return showAlert('Error', 'Please select a delivery pinpoint!');
+        if (cartItems.length === 0) return showAlert('Error', 'Your cart is empty!');
         setShowPaymentModal(true);
     };
 
     const confirmPayment = () => {
         const res = placeOrder(cartItems, selectedShelter, notes, paymentMethod);
         if (res.success) {
-            alert('Order placed successfully!');
+            showAlert('Success', 'Order placed successfully!');
             localStorage.removeItem('cart');
             setCartItems([]);
             navigate('/profile');
         } else {
-            alert('Failed: ' + res.message);
+            showAlert('Error', 'Failed: ' + res.message);
         }
         setShowPaymentModal(false);
     };
@@ -146,38 +147,33 @@ const Cart = () => {
                 )}
 
                 {/* Payment Modal */}
-                {showPaymentModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'end', zIndex: 1000 }}>
-                        <div style={{ background: 'var(--color-bg-main)', width: '100%', padding: '20px', borderRadius: '20px 20px 0 0', animation: 'slideUp 0.3s' }}>
-                            <h2 style={{ marginBottom: '1.5rem' }}>Payment Method</h2>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
-                                <button onClick={() => setPaymentMethod('wallet')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'wallet' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
-                                    <Wallet color="var(--color-primary)" />
-                                    <div style={{ textAlign: 'left' }}>
-                                        <div style={{ fontWeight: 'bold' }}>My Wallet</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Balance: Rp {currentUser.balance.toLocaleString()}</div>
-                                    </div>
-                                </button>
-                                <button onClick={() => setPaymentMethod('qr')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'qr' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
-                                    <QrCode color="var(--color-text-main)" />
-                                    <div style={{ textAlign: 'left', fontWeight: 'bold' }}>QRIS</div>
-                                </button>
-                                <button onClick={() => setPaymentMethod('bank')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'bank' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
-                                    <CreditCard color="var(--color-text-main)" />
-                                    <div style={{ textAlign: 'left', fontWeight: 'bold' }}>Bank Transfer</div>
-                                </button>
+                <Modal
+                    isOpen={showPaymentModal}
+                    onClose={() => setShowPaymentModal(false)}
+                    title="Payment Method"
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                        <button onClick={() => setPaymentMethod('wallet')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'wallet' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
+                            <Wallet color="var(--color-primary)" />
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ fontWeight: 'bold' }}>My Wallet</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Balance: Rp {currentUser.balance.toLocaleString()}</div>
                             </div>
-
-                            <button onClick={confirmPayment} className="btn-primary" style={{ width: '100%', padding: '1rem', marginBottom: '1rem' }}>
-                                PAY Rp {total.toLocaleString()}
-                            </button>
-                            <button onClick={() => setShowPaymentModal(false)} style={{ width: '100%', padding: '1rem', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
-                                Cancel
-                            </button>
-                        </div>
+                        </button>
+                        <button onClick={() => setPaymentMethod('qr')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'qr' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
+                            <QrCode color="var(--color-text-main)" />
+                            <div style={{ textAlign: 'left', fontWeight: 'bold' }}>QRIS</div>
+                        </button>
+                        <button onClick={() => setPaymentMethod('bank')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'bank' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
+                            <CreditCard color="var(--color-text-main)" />
+                            <div style={{ textAlign: 'left', fontWeight: 'bold' }}>Bank Transfer</div>
+                        </button>
                     </div>
-                )}
+
+                    <button onClick={confirmPayment} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
+                        PAY Rp {total.toLocaleString()}
+                    </button>
+                </Modal>
             </div>
         </CustomerLayout>
     );

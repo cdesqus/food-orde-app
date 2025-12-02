@@ -24,7 +24,7 @@ const Register = () => {
         { name: '', price: '', image: '', description: '', category: 'Fast Food' }
     ]);
 
-    const { register } = useApp();
+    const { register, showAlert } = useApp();
     const navigate = useNavigate();
 
     const handleFoodChange = (index, field, value) => {
@@ -45,7 +45,7 @@ const Register = () => {
             // Validate 3 foods
             const validFoods = initialFoods.filter(f => f.name && f.price);
             if (validFoods.length < 3) {
-                alert('Please add at least 3 catalog items.');
+                showAlert('Error', 'Please add at least 3 catalog items.');
                 return;
             }
             register({ ...formData, role }, validFoods);
@@ -54,7 +54,7 @@ const Register = () => {
             register({ ...formData, role, balance: 0, approved: isApproved });
         }
 
-        alert('Registration successful! ' + (role === 'merchant' ? 'Please wait for admin approval.' : 'Please login.'));
+        showAlert('Success', 'Registration successful! ' + (role === 'merchant' ? 'Please wait for admin approval.' : 'Please login.'));
         navigate('/login');
     };
 

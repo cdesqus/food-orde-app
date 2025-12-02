@@ -5,7 +5,7 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import { Wallet, Clock, LogOut } from 'lucide-react';
 
 const Profile = () => {
-    const { currentUser, orders, topUp, logout } = useApp();
+    const { currentUser, orders, topUp, logout, showAlert } = useApp();
     const navigate = useNavigate();
     const [topUpAmount, setTopUpAmount] = useState('');
 
@@ -14,7 +14,7 @@ const Profile = () => {
         if (!topUpAmount) return;
         topUp(parseInt(topUpAmount));
         setTopUpAmount('');
-        alert('Top up successful!');
+        showAlert('Success', 'Top up successful!');
     };
 
     const myOrders = orders.filter(o => o.customerId === currentUser?.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));

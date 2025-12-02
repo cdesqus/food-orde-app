@@ -7,7 +7,7 @@ import { ArrowLeft, Send, ClipboardList, ChefHat, MapPin, CheckCircle, Lock } fr
 const OrderDetail = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
-    const { orders, messages, sendMessage, currentUser, shelters, users } = useApp();
+    const { orders, messages, sendMessage, currentUser, shelters, users, showAlert } = useApp();
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
 
@@ -63,7 +63,7 @@ const OrderDetail = () => {
         if (res.success) {
             setNewMessage('');
         } else {
-            alert(res.message);
+            showAlert('Error', res.message);
         }
     };
 

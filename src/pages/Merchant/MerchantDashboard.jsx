@@ -2,10 +2,46 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X, MessageCircle, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Modal from '../../components/Modal';
+
+const compressImage = (file) => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+        };
+    });
+};
 
 const MerchantDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
-    const { currentUser, logout, foods, addFood, updateFood, deleteFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage, shelters } = useApp();
+    const { currentUser, logout, foods, addFood, updateFood, deleteFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage, shelters, showAlert, showConfirm } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'menu' | 'orders'
     const [showAddFood, setShowAddFood] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
@@ -72,7 +108,7 @@ const MerchantDashboard = () => {
         e.preventDefault();
         const amount = Number(withdrawForm.amount);
         if (amount <= 0 || amount > availableBalance) {
-            alert('Invalid withdrawal amount');
+            showAlert('Error', 'Invalid withdrawal amount');
             return;
         }
 
@@ -85,9 +121,9 @@ const MerchantDashboard = () => {
         if (result.success) {
             setShowWithdrawModal(false);
             setWithdrawForm({ amount: '', bankName: '', accountNumber: '', accountHolder: '' });
-            alert('Withdrawal request submitted!');
+            showAlert('Success', 'Withdrawal request submitted!');
         } else {
-            alert(result.message);
+            showAlert('Error', result.message);
         }
     };
 
@@ -189,17 +225,19 @@ const MerchantDashboard = () => {
 
     const handleOrderAction = (orderId, action, extraData = {}) => {
         // action: 'accepted' | 'rejected' | 'completed'
-        updateOrder(orderId, action, extraData);
 
+        // Send message first to ensure status isn't read-only yet
         if (action === 'delivered_to_shelter') {
-            sendMessage(orderId, currentUser.id, "Makanan udah sampe di titik jemput nih! Buruan ambil sebelum dingin ya! 📍🏃💨");
+            sendMessage(orderId, currentUser.id, "Makanan udah sampe di titik jemput nih! Buruan ambil sebelum dingin ya! 📍🏃💨", extraData.proofPhoto);
         }
+
+        updateOrder(orderId, action, extraData);
     };
 
     const handleArrivedSubmit = (e) => {
         e.preventDefault();
         if (!arrivedPhoto) {
-            alert('Please upload a photo proof');
+            showAlert('Error', 'Please upload a photo proof');
             return;
         }
         handleOrderAction(arrivedOrder.id, 'delivered_to_shelter', { proofPhoto: arrivedPhoto });
@@ -361,92 +399,80 @@ const MerchantDashboard = () => {
                         </button>
 
                         {/* Food Form Modal */}
-                        {showAddFood && (
-                            <div style={{
-                                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-                                backdropFilter: 'blur(5px)'
-                            }}>
-                                <div className="glass-panel" style={{ width: '90%', maxWidth: '500px', padding: '20px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
-                                    <button
-                                        onClick={() => setShowAddFood(false)}
-                                        style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                                    >
-                                        <X size={24} />
-                                    </button>
+                        <Modal
+                            isOpen={showAddFood}
+                            onClose={() => setShowAddFood(false)}
+                            title={editingFood ? 'Edit Item' : 'Add New Item'}
+                        >
+                            <form onSubmit={handleSubmitFood} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                <input placeholder="Item Name" value={foodForm.name} onChange={e => setFoodForm({ ...foodForm, name: e.target.value })} required style={inputStyle} />
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <input placeholder="Price" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
+                                    <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={inputStyle}>
+                                        <option>Fast Food</option>
+                                        <option>Drinks</option>
+                                        <option>Dessert</option>
+                                        <option>Main Course</option>
+                                        <option>Snacks</option>
+                                    </select>
+                                </div>
+                                <textarea placeholder="Description" value={foodForm.description} onChange={e => setFoodForm({ ...foodForm, description: e.target.value })} style={{ ...inputStyle, minHeight: '80px' }} />
 
-                                    <h3 style={{ marginBottom: '15px' }}>{editingFood ? 'Edit Item' : 'Add New Item'}</h3>
-                                    <form onSubmit={handleSubmitFood} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                        <input placeholder="Item Name" value={foodForm.name} onChange={e => setFoodForm({ ...foodForm, name: e.target.value })} required style={inputStyle} />
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <input placeholder="Price" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
-                                            <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={inputStyle}>
-                                                <option>Fast Food</option>
-                                                <option>Drinks</option>
-                                                <option>Dessert</option>
-                                                <option>Main Course</option>
-                                                <option>Snacks</option>
-                                            </select>
-                                        </div>
-                                        <textarea placeholder="Description" value={foodForm.description} onChange={e => setFoodForm({ ...foodForm, description: e.target.value })} style={{ ...inputStyle, minHeight: '80px' }} />
-
-                                        <div>
-                                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Photos (Max 5)</label>
-                                            {foodForm.photos.map((photo, idx) => (
-                                                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '15px', padding: '10px', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files[0];
-                                                                if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => {
-                                                                        handlePhotoChange(idx, reader.result);
-                                                                    };
-                                                                    reader.readAsDataURL(file);
-                                                                }
-                                                            }}
-                                                            style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}
-                                                        />
-                                                        {idx > 0 && (
-                                                            <button type="button" onClick={() => {
-                                                                const newPhotos = foodForm.photos.filter((_, i) => i !== idx);
-                                                                setFoodForm({ ...foodForm, photos: newPhotos });
-                                                            }} style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)' }}>
-                                                                <Trash2 size={20} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>OR URL:</span>
-                                                        <input
-                                                            placeholder="https://..."
-                                                            value={photo}
-                                                            onChange={e => handlePhotoChange(idx, e.target.value)}
-                                                            style={{ ...inputStyle, flex: 1 }}
-                                                        />
-                                                    </div>
-                                                    {photo && (
-                                                        <img src={photo} alt="Preview" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '5px' }} />
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {foodForm.photos.length < 5 && (
-                                                <button type="button" onClick={addPhotoField} style={{ fontSize: '0.9rem', color: 'var(--color-primary)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    <Plus size={16} /> Add another photo
-                                                </button>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Photos (Max 5)</label>
+                                    {foodForm.photos.map((photo, idx) => (
+                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '15px', padding: '10px', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onloadend = () => {
+                                                                handlePhotoChange(idx, reader.result);
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        }
+                                                    }}
+                                                    style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}
+                                                />
+                                                {idx > 0 && (
+                                                    <button type="button" onClick={() => {
+                                                        const newPhotos = foodForm.photos.filter((_, i) => i !== idx);
+                                                        setFoodForm({ ...foodForm, photos: newPhotos });
+                                                    }} style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)' }}>
+                                                        <Trash2 size={20} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>OR URL:</span>
+                                                <input
+                                                    placeholder="https://..."
+                                                    value={photo}
+                                                    onChange={e => handlePhotoChange(idx, e.target.value)}
+                                                    style={{ ...inputStyle, flex: 1 }}
+                                                />
+                                            </div>
+                                            {photo && (
+                                                <img src={photo} alt="Preview" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', marginTop: '5px' }} />
                                             )}
                                         </div>
-
-                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                            <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingFood ? 'Update Item' : 'Add Item'}</button>
-                                        </div>
-                                    </form>
+                                    ))}
+                                    {foodForm.photos.length < 5 && (
+                                        <button type="button" onClick={addPhotoField} style={{ fontSize: '0.9rem', color: 'var(--color-primary)', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <Plus size={16} /> Add another photo
+                                        </button>
+                                    )}
                                 </div>
-                            </div>
-                        )}
+
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                    <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingFood ? 'Update Item' : 'Add Item'}</button>
+                                </div>
+                            </form>
+                        </Modal>
 
                         <div style={{ display: 'grid', gap: '15px' }}>
                             {myFoods.map(food => (
@@ -463,9 +489,9 @@ const MerchantDashboard = () => {
                                                     <Edit2 size={20} />
                                                 </button>
                                                 <button onClick={() => {
-                                                    if (window.confirm('Are you sure you want to delete this item?')) {
+                                                    showConfirm('Delete Item', 'Are you sure you want to delete this item?', () => {
                                                         deleteFood(food.id);
-                                                    }
+                                                    });
                                                 }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-hot-pink)' }}>
                                                     <Trash2 size={20} />
                                                 </button>
@@ -594,245 +620,218 @@ const MerchantDashboard = () => {
             </div>
 
             {/* Withdrawal Modal */}
-            {
-                showWithdrawModal && (
-                    <div style={{
-                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-                        backdropFilter: 'blur(5px)'
-                    }}>
-                        <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
-                            <button
-                                onClick={() => setShowWithdrawModal(false)}
-                                style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                            >
-                                <X size={24} />
-                            </button>
+            <Modal
+                isOpen={showWithdrawModal}
+                onClose={() => setShowWithdrawModal(false)}
+                title="Withdraw Funds"
+            >
+                <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#004d00' }}>Available to Withdraw</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#006400' }}>Rp {availableBalance.toLocaleString()}</div>
+                </div>
 
-                            <h2 style={{ fontSize: '1.5rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <DollarSign color="var(--color-neon-green)" /> Withdraw Funds
-                            </h2>
+                <form onSubmit={handleWithdrawSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Amount</label>
+                        <input
+                            type="number"
+                            placeholder="Enter amount"
+                            value={withdrawForm.amount}
+                            onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
+                            max={availableBalance}
+                            min={10000}
+                            required
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Bank Name</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. BCA, Mandiri"
+                            value={withdrawForm.bankName}
+                            onChange={e => setWithdrawForm({ ...withdrawForm, bankName: e.target.value })}
+                            required
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Account Number</label>
+                        <input
+                            type="text"
+                            placeholder="1234567890"
+                            value={withdrawForm.accountNumber}
+                            onChange={e => setWithdrawForm({ ...withdrawForm, accountNumber: e.target.value })}
+                            required
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Account Holder Name</label>
+                        <input
+                            type="text"
+                            placeholder="Name on account"
+                            value={withdrawForm.accountHolder}
+                            onChange={e => setWithdrawForm({ ...withdrawForm, accountHolder: e.target.value })}
+                            required
+                            style={inputStyle}
+                        />
+                    </div>
 
-                            <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)' }}>
-                                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Available to Withdraw</div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Rp {availableBalance.toLocaleString()}</div>
+                    <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+                        Submit Request
+                    </button>
+                </form>
+            </Modal>
+
+            {/* Chat Modal */}
+            {activeChatOrder && (
+                <Modal
+                    isOpen={showChatModal}
+                    onClose={() => { setShowChatModal(false); setActiveChatOrder(null); }}
+                    title={`Chat - Order #${activeChatOrder.id.slice(-4)}`}
+                >
+                    <div style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>
+                        <div className="thin-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(0,0,0,0.05)', borderRadius: '12px', marginBottom: '15px' }}>
+                            {messages.filter(m => m.orderId === activeChatOrder.id).length === 0 ? (
+                                <div style={{ textAlign: 'center', color: '#004d00', marginTop: '20px' }}>No messages yet.</div>
+                            ) : (
+                                messages.filter(m => m.orderId === activeChatOrder.id).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).map(msg => {
+                                    const isMe = msg.senderId === currentUser.id;
+                                    return (
+                                        <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+                                            <div style={{
+                                                background: isMe ? 'var(--color-primary)' : '#333',
+                                                color: 'white',
+                                                padding: '8px 12px', borderRadius: '12px',
+                                                border: isMe ? 'none' : '1px solid #ccc',
+                                                fontSize: '0.9rem',
+                                                fontWeight: 'normal'
+                                            }}>
+                                                {msg.image && (
+                                                    <img src={msg.image} alt="Attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '5px' }} />
+                                                )}
+                                                {msg.text}
+                                            </div>
+                                            <div style={{ fontSize: '0.7rem', color: '#004d00', marginTop: '4px', textAlign: isMe ? 'right' : 'left' }}>
+                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div style={{ padding: '10px', background: 'rgba(0,0,0,0.05)', borderRadius: '12px' }}>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
+                                {[
+                                    "Pesanan siap diproses! Ditunggu ya 🔥🍳",
+                                    "Lagi dimasak penuh cinta nih, sabar ya! 👨‍🍳✨",
+                                    "Sebentar lagi matang, siap-siap ya! 🚀"
+                                ].map((text, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            sendMessage(activeChatOrder.id, currentUser.id, text);
+                                        }}
+                                        style={{
+                                            whiteSpace: 'nowrap',
+                                            padding: '6px 12px',
+                                            borderRadius: '15px',
+                                            border: '1px solid var(--color-primary)',
+                                            background: 'white',
+                                            color: '#004d00',
+                                            fontSize: '0.8rem',
+                                            cursor: 'pointer',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        {text}
+                                    </button>
+                                ))}
                             </div>
-
-                            <form onSubmit={handleWithdrawSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Amount</label>
-                                    <input
-                                        type="number"
-                                        placeholder="Enter amount"
-                                        value={withdrawForm.amount}
-                                        onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
-                                        max={availableBalance}
-                                        min={10000}
-                                        required
-                                        style={inputStyle}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Bank Name</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. BCA, Mandiri"
-                                        value={withdrawForm.bankName}
-                                        onChange={e => setWithdrawForm({ ...withdrawForm, bankName: e.target.value })}
-                                        required
-                                        style={inputStyle}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Number</label>
-                                    <input
-                                        type="text"
-                                        placeholder="1234567890"
-                                        value={withdrawForm.accountNumber}
-                                        onChange={e => setWithdrawForm({ ...withdrawForm, accountNumber: e.target.value })}
-                                        required
-                                        style={inputStyle}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Account Holder Name</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Name on account"
-                                        value={withdrawForm.accountHolder}
-                                        onChange={e => setWithdrawForm({ ...withdrawForm, accountHolder: e.target.value })}
-                                        required
-                                        style={inputStyle}
-                                    />
-                                </div>
-
-                                <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
-                                    Submit Request
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!chatMessage.trim()) return;
+                                sendMessage(activeChatOrder.id, currentUser.id, chatMessage);
+                                setChatMessage('');
+                            }} style={{ display: 'flex', gap: '10px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Type a message..."
+                                    value={chatMessage}
+                                    onChange={e => setChatMessage(e.target.value)}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: '20px', border: '1px solid #ccc',
+                                        background: 'white', color: 'black', outline: 'none'
+                                    }}
+                                />
+                                <button type="submit" style={{
+                                    width: '40px', height: '40px', borderRadius: '50%', border: 'none',
+                                    background: 'var(--color-primary)', color: 'black', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <Send size={18} />
                                 </button>
                             </form>
                         </div>
-                    </div>
-                )
-            }
-
-            {/* Chat Modal */}
-            {
-                showChatModal && activeChatOrder && (
-                    <div style={{
-                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100,
-                        backdropFilter: 'blur(5px)'
-                    }}>
-                        <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', height: '500px', display: 'flex', flexDirection: 'column', position: 'relative', padding: 0, overflow: 'hidden' }}>
-                            <div style={{ padding: '15px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                                <h3 style={{ fontSize: '1rem', margin: 0 }}>Chat - Order #{activeChatOrder.id.slice(-4)}</h3>
-                                <button onClick={() => { setShowChatModal(false); setActiveChatOrder(null); }} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="thin-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {messages.filter(m => m.orderId === activeChatOrder.id).length === 0 ? (
-                                    <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '20px' }}>No messages yet.</div>
-                                ) : (
-                                    messages.filter(m => m.orderId === activeChatOrder.id).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).map(msg => {
-                                        const isMe = msg.senderId === currentUser.id;
-                                        return (
-                                            <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-                                                <div style={{
-                                                    background: isMe ? 'var(--color-primary)' : 'var(--color-bg-surface)',
-                                                    color: isMe ? 'white' : 'var(--color-text-main)',
-                                                    padding: '8px 12px', borderRadius: '12px',
-                                                    border: isMe ? 'none' : '1px solid var(--color-border)',
-                                                    fontSize: '0.9rem'
-                                                }}>
-                                                    {msg.text}
-                                                </div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px', textAlign: isMe ? 'right' : 'left' }}>
-                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-
-                            <div style={{ padding: '15px', borderTop: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)' }}>
-                                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
-                                    {[
-                                        "Pesanan siap diproses! Ditunggu ya 🔥🍳",
-                                        "Lagi dimasak penuh cinta nih, sabar ya! 👨‍🍳✨",
-                                        "Sebentar lagi matang, siap-siap ya! 🚀"
-                                    ].map((text, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => {
-                                                sendMessage(activeChatOrder.id, currentUser.id, text);
-                                            }}
-                                            style={{
-                                                whiteSpace: 'nowrap',
-                                                padding: '6px 12px',
-                                                borderRadius: '15px',
-                                                border: '1px solid var(--color-border)',
-                                                background: 'var(--color-bg-surface)',
-                                                color: 'var(--color-text-main)',
-                                                fontSize: '0.8rem',
-                                                cursor: 'pointer',
-                                                flexShrink: 0
-                                            }}
-                                        >
-                                            {text}
-                                        </button>
-                                    ))}
-                                </div>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    if (!chatMessage.trim()) return;
-                                    sendMessage(activeChatOrder.id, currentUser.id, chatMessage);
-                                    setChatMessage('');
-                                }} style={{ display: 'flex', gap: '10px' }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Type a message..."
-                                        value={chatMessage}
-                                        onChange={e => setChatMessage(e.target.value)}
-                                        style={{
-                                            flex: 1, padding: '10px', borderRadius: '20px', border: '1px solid var(--color-border)',
-                                            background: 'white', color: '#333', outline: 'none'
-                                        }}
-                                    />
-                                    <button type="submit" style={{
-                                        width: '40px', height: '40px', borderRadius: '50%', border: 'none',
-                                        background: 'var(--color-primary)', color: 'white', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        <Send size={18} />
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-            {/* Arrived Photo Modal */}
-            {showArrivedModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
-                    backdropFilter: 'blur(5px)'
-                }}>
-                    <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '20px', position: 'relative' }}>
-                        <button
-                            onClick={() => { setShowArrivedModal(false); setArrivedOrder(null); setArrivedPhoto(''); }}
-                            style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
-                        >
-                            <X size={24} />
-                        </button>
-
-                        <h3 style={{ marginBottom: '15px' }}>Proof of Arrival 📸</h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '20px' }}>
-                            Please upload a photo of the food at the shelter to notify the customer.
-                        </p>
-
-                        <form onSubmit={handleArrivedSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div style={{ padding: '20px', border: '2px dashed var(--color-border)', borderRadius: '12px', textAlign: 'center' }}>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        const file = e.target.files[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                setArrivedPhoto(reader.result);
-                                            };
-                                            reader.readAsDataURL(file);
-                                        }
-                                    }}
-                                    style={{ display: 'none' }}
-                                    id="arrived-photo-upload"
-                                />
-                                <label htmlFor="arrived-photo-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                                    {arrivedPhoto ? (
-                                        <img src={arrivedPhoto} alt="Proof" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
-                                    ) : (
-                                        <>
-                                            <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <Plus size={24} color="var(--color-primary)" />
-                                            </div>
-                                            <span style={{ color: 'var(--color-primary)' }}>Tap to take photo</span>
-                                        </>
-                                    )}
-                                </label>
-                            </div>
-
-                            <button type="submit" className="btn-primary" disabled={!arrivedPhoto} style={{ opacity: arrivedPhoto ? 1 : 0.5 }}>
-                                Submit & Notify Customer
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                    </div >
+                </Modal >
             )}
+
+            {/* Arrived Photo Modal */}
+            <Modal
+                isOpen={showArrivedModal}
+                onClose={() => { setShowArrivedModal(false); setArrivedOrder(null); setArrivedPhoto(''); }}
+                title="Proof of Arrival 📸"
+            >
+                <p style={{ fontSize: '0.9rem', color: '#004d00', marginBottom: '20px' }}>
+                    Please upload a photo of the food at the shelter to notify the customer.
+                </p>
+
+                <form onSubmit={handleArrivedSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ padding: '20px', border: '2px dashed var(--color-primary)', borderRadius: '12px', textAlign: 'center' }}>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    try {
+                                        const compressed = await compressImage(file);
+                                        setArrivedPhoto(compressed);
+                                    } catch (error) {
+                                        console.error("Compression error:", error);
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                            setArrivedPhoto(reader.result);
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }
+                            }}
+                            style={{ display: 'none' }}
+                            id="arrived-photo-input"
+                        />
+                        <label htmlFor="arrived-photo-input" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#004d00' }}>
+                            {arrivedPhoto ? (
+                                <img src={arrivedPhoto} alt="Proof" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
+                            ) : (
+                                <>
+                                    <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'rgba(57, 255, 20, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Plus color="var(--color-primary)" />
+                                    </div>
+                                    <span>Tap to upload photo</span>
+                                </>
+                            )}
+                        </label>
+                    </div>
+
+                    <button type="submit" className="btn-primary">
+                        Notify Customer
+                    </button>
+                </form>
+            </Modal>
         </div >
     );
 };
