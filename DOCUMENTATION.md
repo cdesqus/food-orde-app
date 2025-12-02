@@ -50,49 +50,34 @@
 
 ---
 
-## 4. Business Process
+## 4. Business Process & UX Flows
 
-The core business processes of EAT.Z are designed to ensure a smooth, transparent, and efficient experience for all stakeholders.
+This section outlines the core user journeys, designed to guide UX/UI development. It maps user actions to system responses and key UI states.
 
-### 4.1. Customer Ordering Process
-1.  **Selection**: The customer browses the menu, filtering by category or searching for specific items.
-2.  **Cart Management**:
-    *   Items are added to the cart.
-    *   **Constraint**: The system enforces a "Single Merchant" policy. If a customer tries to add items from a different merchant, they are prompted to clear their current cart first.
-3.  **Checkout**:
-    *   The customer reviews their order.
-    *   **Location Selection**: A specific "Pinpoint Location" (Shelter) is selected for delivery.
-    *   **Payment**: The customer chooses between "Wallet" (digital balance) or "Cash".
-4.  **Order Placement**: The order is submitted and enters the "Pending" state.
-5.  **Tracking & Communication**:
-    *   The customer tracks the status: `Pending` -> `Cooking` -> `Arrived` -> `Completed`.
-    *   **Chat**: During the `Cooking` phase, the customer can chat with the merchant to provide specific instructions or ask questions.
-6.  **Pickup**: Once the order arrives at the shelter, the customer collects their food.
+### 4.1. Customer Journey: Ordering Food
+| Step | User Action | System Logic / UX Response |
+| :--- | :--- | :--- |
+| **1. Discovery** | User browses Home Page or searches for "Burger". | **UI**: Displays `FoodCard` grid. Shows ratings and delivery time.<br>**System**: Filters `foods` array by active status. |
+| **2. Selection** | User clicks **"Add to Cart"** on an item. | **Logic**: Check `cart[0].merchantId` vs `newItem.merchantId`.<br>**UX (Pass)**: Toast "Added to cart". Cart counter +1.<br>**UX (Fail)**: **Alert Modal**: "Different Merchant. Clear cart?" |
+| **3. Checkout** | User opens Cart, selects **Shelter**, and clicks **Checkout**. | **UI**: Dropdown for `shelters`. Total price calculation.<br>**System**: Validates balance (if Wallet). Creates `order` object. |
+| **4. Waiting** | User waits for food. | **UI**: Order Detail page shows Status Stepper.<br>**States**: `Pending` ➝ `Cooking` ➝ `Arrived`. |
+| **5. Chatting** | User sends a message during "Cooking" phase. | **UI**: Chat window enabled.<br>**System**: Pushes message to `messages` array. |
+| **6. Pickup** | User sees "Arrived" status. | **UI**: Green notification card: "Food is waiting at [Location]!". |
 
-### 4.2. Merchant Fulfillment Process
-1.  **Order Reception**: The merchant receives a notification of a new "Pending" order in their dashboard.
-2.  **Acceptance**: The merchant reviews the order details and clicks **Accept**. The status changes to `Cooking`.
-3.  **Preparation**: The merchant prepares the food.
-4.  **Delivery to Shelter**:
-    *   The merchant (or their runner) delivers the food to the specified Pinpoint Location.
-    *   **Validation**: Upon arrival, the merchant clicks **"Mark Arrived at Shelter"**.
-    *   **Proof of Delivery**: A modal appears requiring the merchant to upload a **photo proof** of the food at the location.
-    *   **Notification**: The status updates to `Arrived`, and the customer is notified.
-5.  **Completion**: Once the customer picks up the food, the order is marked as `Completed`.
+### 4.2. Merchant Journey: Fulfillment
+| Step | User Action | System Logic / UX Response |
+| :--- | :--- | :--- |
+| **1. Notification** | Merchant receives new order. | **UI**: "Incoming Orders" tab shows red badge.<br>**Card**: Shows items, total, and **Accept/Reject** buttons. |
+| **2. Action** | Merchant clicks **"Accept"**. | **System**: Updates order status to `cooking`.<br>**UI**: Order moves to "Active Orders" list. |
+| **3. Delivery** | Merchant arrives at Shelter and clicks **"Mark Arrived"**. | **UX**: **Photo Upload Modal** opens (Critical Step).<br>**System**: Prevents status update until photo is present. |
+| **4. Validation** | Merchant takes/uploads photo and submits. | **System**: Updates status to `delivered_to_shelter`.<br>**UI**: Toast "Customer notified". |
 
-### 4.3. Admin Management Process
-1.  **Onboarding & Verification**:
-    *   New merchants and customers register.
-    *   The Admin reviews these pending accounts in the "Verification" tab and approves them.
-2.  **Monitoring**:
-    *   The Admin monitors platform health via the Dashboard.
-    *   **Analytics**: A "Revenue per Merchant" chart provides insights into top-performing vendors.
-    *   **Activity Feed**: A detailed "Recent Activity" log shows who ordered from whom.
-3.  **User Management**:
-    *   The Admin can **Edit** user profiles, **Reset Passwords**, or **Delete** users if necessary.
-4.  **Master Data Management**:
-    *   The Admin manages the list of Pinpoint Locations (Shelters).
-    *   Locations can be **Added**, **Edited**, or **Deleted** to keep the delivery points accurate.
+### 4.3. Admin Journey: Management
+| Step | User Action | System Logic / UX Response |
+| :--- | :--- | :--- |
+| **1. Verification** | Admin views "Verification" tab. | **UI**: List of pending users with **Approve** button.<br>**System**: Filters `users` where `approved: false`. |
+| **2. Monitoring** | Admin checks "Revenue" chart. | **UI**: Area Chart showing income trends.<br>**Data**: Aggregates `orders` by timestamp. |
+| **3. Master Data** | Admin edits a Location. | **UX**: **Edit Modal** appears with Name/Detail inputs.<br>**System**: Updates `shelters` array. |
 
 ---
 
