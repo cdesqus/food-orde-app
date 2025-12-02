@@ -174,6 +174,9 @@ const OrderDetail = () => {
                                             border: isMe ? 'none' : '1px solid var(--color-border)',
                                             fontSize: '0.9rem'
                                         }}>
+                                            {msg.image && (
+                                                <img src={msg.image} alt="Attachment" style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '5px', display: 'block' }} />
+                                            )}
                                             {msg.text}
                                         </div>
                                         <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px', textAlign: isMe ? 'right' : 'left' }}>
