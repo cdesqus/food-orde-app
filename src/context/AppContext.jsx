@@ -10,7 +10,7 @@ export const AppProvider = ({ children }) => {
   const [users, setUsers] = useState(() => {
     try {
       const saved = localStorage.getItem('users');
-      return saved ? JSON.parse(saved) : [
+      let initialUsers = saved ? JSON.parse(saved) : [
         { id: 'admin', name: 'Admin User', role: 'admin', email: 'admin@food.com', password: '123', approved: true },
         // 5 Merchants
         { id: 'm1', name: 'Neon Burger', role: 'merchant', email: 'burger@food.com', password: '123', approved: true, phone: '08123456789', photo: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=500', description: 'Best burgers in 2077' },
@@ -20,7 +20,16 @@ export const AppProvider = ({ children }) => {
         { id: 'm5', name: 'Noodle Net', role: 'merchant', email: 'noodle@food.com', password: '123', approved: true, phone: '08123456785', photo: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=500', description: 'Connected by flavor' },
         // Customer
         { id: 'c1', name: 'John Doe', role: 'customer', email: 'john@food.com', password: '123', balance: 500000, approved: true, phone: '08123456000' },
+        // Finance
+        { id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true }
       ];
+
+      // Fix for existing localStorage: Ensure Finance user exists
+      if (!initialUsers.find(u => u.email === 'finance@food.com')) {
+        initialUsers.push({ id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true });
+      }
+
+      return initialUsers;
     } catch (e) {
       console.error('Failed to parse users', e);
       return [];
@@ -153,12 +162,16 @@ export const AppProvider = ({ children }) => {
     setUsers(users.filter(u => u.id !== id));
   };
 
-  const createAdmin = (adminData) => {
-    if (users.find(u => u.email === adminData.email)) {
+  const createUser = (userData) => {
+    if (users.find(u => u.email === userData.email)) {
       return { success: false, message: 'Email already exists' };
     }
-    const newAdmin = { ...adminData, id: `admin-${Date.now()}`, role: 'admin', approved: true };
-    setUsers([...users, newAdmin]);
+    const newUser = {
+      ...userData,
+      id: `${userData.role}-${Date.now()}`,
+      approved: true
+    };
+    setUsers([...users, newUser]);
     return { success: true };
   };
 
@@ -182,17 +195,42 @@ export const AppProvider = ({ children }) => {
     setUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
   };
 
+  // Helper: Calculate price displayed to customer (Base + 15%)
+  const getDisplayPrice = (basePrice) => {
+    return basePrice + Math.floor(basePrice * 0.15);
+  };
+
   const placeOrder = (cartItems, shelterId, notes, paymentMethod) => {
     if (!currentUser) return { success: false, message: 'Not logged in' };
 
-    const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Calculate totals based on Item Level to match Customer UI
+    let totalBasePrice = 0;
+    let totalDisplayPrice = 0;
+
+    const enrichedItems = cartItems.map(item => {
+      const basePrice = item.price;
+      const platformFee = Math.floor(basePrice * 0.15);
+      const finalPrice = basePrice + platformFee;
+
+      totalBasePrice += basePrice * item.quantity;
+      totalDisplayPrice += finalPrice * item.quantity;
+
+      return {
+        ...item,
+        basePrice: basePrice,
+        platformFee: platformFee,
+        finalPrice: finalPrice
+      };
+    });
+
+    const totalPlatformFee = totalDisplayPrice - totalBasePrice;
 
     if (paymentMethod === 'wallet') {
-      if ((currentUser.balance || 0) < total) {
+      if ((currentUser.balance || 0) < totalDisplayPrice) {
         return { success: false, message: 'Insufficient balance' };
       }
       // Deduct balance
-      const updatedUser = { ...currentUser, balance: currentUser.balance - total };
+      const updatedUser = { ...currentUser, balance: currentUser.balance - totalDisplayPrice };
       setCurrentUser(updatedUser);
       setUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
     }
@@ -200,8 +238,10 @@ export const AppProvider = ({ children }) => {
     const newOrder = {
       id: `ord-${Date.now()}`,
       customerId: currentUser.id,
-      items: cartItems,
-      total,
+      items: enrichedItems, // Stores breakdown per item
+      basePrice: totalBasePrice, // Merchant Payout
+      handlingFee: totalPlatformFee, // Platform Profit
+      total: totalDisplayPrice, // Customer Paid
       shelterId,
       status: 'pending',
       timestamp: new Date().toISOString(),
@@ -237,9 +277,9 @@ export const AppProvider = ({ children }) => {
     try {
       const saved = localStorage.getItem('shelters');
       return saved ? JSON.parse(saved) : [
-        { id: 's1', name: 'Main Lobby', detail: 'Near the reception desk' },
-        { id: 's2', name: 'Library Entrance', detail: 'By the main glass doors' },
-        { id: 's3', name: 'Tech Park Gate', detail: 'Security post 1' }
+        { id: 's1', name: 'Main Lobby', detail: 'Near the reception desk', opening_time: '08:00', closing_time: '20:00' },
+        { id: 's2', name: 'Library Entrance', detail: 'By the main glass doors', opening_time: '09:00', closing_time: '17:00' },
+        { id: 's3', name: 'Tech Park Gate', detail: 'Security post 1', opening_time: '07:00', closing_time: '22:00' }
       ];
     } catch (e) {
       console.error('Failed to parse shelters', e);
@@ -249,8 +289,8 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => { localStorage.setItem('shelters', JSON.stringify(shelters)); }, [shelters]);
 
-  const addShelter = (name, detail) => {
-    const newShelter = { id: `s${Date.now()}`, name, detail };
+  const addShelter = (name, detail, opening_time = '08:00', closing_time = '20:00') => {
+    const newShelter = { id: `s${Date.now()}`, name, detail, opening_time, closing_time };
     setShelters([...shelters, newShelter]);
   };
 
@@ -274,6 +314,66 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => { localStorage.setItem('withdrawals', JSON.stringify(withdrawals)); }, [withdrawals]);
 
+  // Master Data: Dorms & Rooms
+  const [dorms, setDorms] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dorms');
+      return saved ? JSON.parse(saved) : [
+        { id: 'd1', name: 'Asrama Putra A', location_area: 'North Campus' },
+        { id: 'd2', name: 'Asrama Putri C', location_area: 'South Campus' }
+      ];
+    } catch (e) {
+      console.error('Failed to parse dorms', e);
+      return [];
+    }
+  });
+
+  const [rooms, setRooms] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rooms');
+      return saved ? JSON.parse(saved) : [
+        { id: 'r1', dormId: 'd1', room_number: '101' },
+        { id: 'r2', dormId: 'd1', room_number: '102' },
+        { id: 'r3', dormId: 'd2', room_number: '201' },
+        { id: 'r4', dormId: 'd2', room_number: '202' }
+      ];
+    } catch (e) {
+      console.error('Failed to parse rooms', e);
+      return [];
+    }
+  });
+
+  useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
+  useEffect(() => { localStorage.setItem('rooms', JSON.stringify(rooms)); }, [rooms]);
+
+  const addDorm = (name, location_area) => {
+    const newDorm = { id: `d${Date.now()}`, name, location_area };
+    setDorms([...dorms, newDorm]);
+  };
+
+  const updateDorm = (id, updates) => {
+    setDorms(dorms.map(d => d.id === id ? { ...d, ...updates } : d));
+  };
+
+  const deleteDorm = (id) => {
+    setDorms(dorms.filter(d => d.id !== id));
+    // Also delete associated rooms? Optional but good practice.
+    setRooms(rooms.filter(r => r.dormId !== id));
+  };
+
+  const addRoom = (dormId, room_number) => {
+    const newRoom = { id: `r${Date.now()}`, dormId, room_number };
+    setRooms([...rooms, newRoom]);
+  };
+
+  const updateRoom = (id, updates) => {
+    setRooms(rooms.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const deleteRoom = (id) => {
+    setRooms(rooms.filter(r => r.id !== id));
+  };
+
   const requestWithdrawal = (amount, bankDetails) => {
     if (!currentUser) return { success: false, message: 'Not logged in' };
 
@@ -290,14 +390,14 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  const updateWithdrawalStatus = (id, status) => {
+    setWithdrawals(withdrawals.map(w => w.id === id ? { ...w, status } : w));
+  };
+
   const sendMessage = (orderId, senderId, text, image = null) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return { success: false, message: 'Order not found' };
 
-    // Security Check: Chat only active if Approved/Cooking
-    // And NOT completed/delivered (Read-only)
-    // Actually, user said: "Termination: Once status becomes COMPLETED or ARRIVED... chat must become Read-Only"
-    // So we reject new messages in these states.
     if (['pending', 'completed', 'delivered_to_shelter', 'rejected'].includes(order.status)) {
       return { success: false, message: 'Chat is closed for this order status.' };
     }
@@ -352,10 +452,11 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
-      users, currentUser, foods, orders, shelters, withdrawals, messages,
-      login, logout, register, toggleUserStatus, createAdmin, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
-      addShelter, updateShelter, deleteShelter, requestWithdrawal, sendMessage,
-      showAlert, showConfirm
+      users, currentUser, foods, orders, shelters, withdrawals, messages, dorms, rooms,
+      login, logout, register, toggleUserStatus, createUser, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
+      addShelter, updateShelter, deleteShelter, requestWithdrawal, updateWithdrawalStatus, sendMessage,
+      addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
+      showAlert, showConfirm, getDisplayPrice
     }}>
       {children}
       <ConfirmationModal

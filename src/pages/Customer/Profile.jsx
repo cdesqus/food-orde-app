@@ -5,9 +5,11 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import { Wallet, Clock, LogOut } from 'lucide-react';
 
 const Profile = () => {
-    const { currentUser, orders, topUp, logout, showAlert } = useApp();
+    const { currentUser, orders, topUp, logout, showAlert, dorms, rooms, updateUser } = useApp();
     const navigate = useNavigate();
     const [topUpAmount, setTopUpAmount] = useState('');
+    const [showLocationModal, setShowLocationModal] = useState(false);
+    const [newLocation, setNewLocation] = useState({ dormId: currentUser?.dormId || '', roomId: currentUser?.roomId || '' });
 
     const handleTopUp = (e) => {
         e.preventDefault();
@@ -28,7 +30,63 @@ const Profile = () => {
                     </div>
                     <h1 style={{ fontSize: '1.5rem' }}>{currentUser?.name}</h1>
                     <p style={{ color: 'var(--color-text-muted)' }}>{currentUser?.email}</p>
+
+                    {/* Dorm Info */}
+                    {currentUser?.role === 'customer' && (
+                        <div style={{ marginTop: '1rem', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', display: 'inline-block' }}>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '5px' }}>Current Location</div>
+                            <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center' }}>
+                                {dorms.find(d => d.id === currentUser.dormId)?.name || 'Unknown Dorm'}
+                                <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                                Room {rooms.find(r => r.id === currentUser.roomId)?.room_number || '??'}
+                                <button
+                                    onClick={() => setShowLocationModal(true)}
+                                    style={{ background: 'transparent', border: '1px solid var(--color-primary)', color: 'var(--color-primary)', borderRadius: '5px', padding: '2px 8px', fontSize: '0.7rem', cursor: 'pointer', marginLeft: '10px' }}
+                                >
+                                    Change
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* Location Edit Modal */}
+                {showLocationModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                        <div className="glass-panel" style={{ padding: '2rem', width: '90%', maxWidth: '400px' }}>
+                            <h3 style={{ marginBottom: '1rem' }}>Update Location</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <select
+                                    value={newLocation.dormId}
+                                    onChange={(e) => setNewLocation({ ...newLocation, dormId: e.target.value, roomId: '' })}
+                                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                >
+                                    <option value="">Select Dorm</option>
+                                    {dorms.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                                <select
+                                    value={newLocation.roomId}
+                                    onChange={(e) => setNewLocation({ ...newLocation, roomId: e.target.value })}
+                                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                    disabled={!newLocation.dormId}
+                                >
+                                    <option value="">Select Room</option>
+                                    {rooms.filter(r => r.dormId === newLocation.dormId).map(r => <option key={r.id} value={r.id}>{r.room_number}</option>)}
+                                </select>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                    <button onClick={() => setShowLocationModal(false)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
+                                    <button onClick={() => {
+                                        if (newLocation.dormId && newLocation.roomId) {
+                                            updateUser(currentUser.id, { dormId: newLocation.dormId, roomId: newLocation.roomId });
+                                            setShowLocationModal(false);
+                                            showAlert('Success', 'Location updated!');
+                                        }
+                                    }} className="btn-primary" style={{ flex: 1 }}>Save</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>

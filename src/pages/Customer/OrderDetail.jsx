@@ -7,7 +7,7 @@ import { ArrowLeft, Send, ClipboardList, ChefHat, MapPin, CheckCircle, Lock } fr
 const OrderDetail = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
-    const { orders, messages, sendMessage, currentUser, shelters, users, showAlert } = useApp();
+    const { orders, messages, sendMessage, currentUser, shelters, users, showAlert, updateOrder } = useApp();
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
 
@@ -136,14 +136,23 @@ const OrderDetail = () => {
 
                     {/* Arrived State Special UI */}
                     {order.status === 'delivered_to_shelter' && (
-                        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '50px', height: '50px', background: 'var(--color-neon-green)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black' }}>
-                                <MapPin size={24} />
+                        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(46, 213, 115, 0.1)', borderRadius: '12px', border: '1px solid var(--color-neon-green)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ width: '50px', height: '50px', background: 'var(--color-neon-green)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black' }}>
+                                    <MapPin size={24} />
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Your food is waiting!</div>
+                                    <div style={{ fontSize: '0.9rem' }}>At: {shelter?.name} ({shelter?.detail})</div>
+                                </div>
                             </div>
-                            <div>
-                                <div style={{ fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Your food is waiting!</div>
-                                <div style={{ fontSize: '0.9rem' }}>At: {shelter?.name} ({shelter?.detail})</div>
-                            </div>
+                            <button
+                                onClick={() => updateOrder(order.id, 'completed')}
+                                className="btn-primary"
+                                style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                            >
+                                <CheckCircle size={20} /> Order Received / Pesanan Diterima
+                            </button>
                         </div>
                     )}
                 </div>

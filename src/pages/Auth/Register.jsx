@@ -24,7 +24,7 @@ const Register = () => {
         { name: '', price: '', image: '', description: '', category: 'Fast Food' }
     ]);
 
-    const { register, showAlert } = useApp();
+    const { register, showAlert, dorms, rooms } = useApp();
     const navigate = useNavigate();
 
     const handleFoodChange = (index, field, value) => {
@@ -163,6 +163,38 @@ const Register = () => {
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                 style={inputStyle}
                             />
+
+                            {/* Dorm & Room Selection for Customer */}
+                            {role === 'customer' && (
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <select
+                                        value={formData.dormId || ''}
+                                        onChange={(e) => setFormData({ ...formData, dormId: e.target.value, roomId: '' })}
+                                        style={inputStyle}
+                                        required
+                                    >
+                                        <option value="">Select Dorm</option>
+                                        {dorms.map(dorm => (
+                                            <option key={dorm.id} value={dorm.id}>{dorm.name}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={formData.roomId || ''}
+                                        onChange={(e) => setFormData({ ...formData, roomId: e.target.value })}
+                                        style={inputStyle}
+                                        required
+                                        disabled={!formData.dormId}
+                                    >
+                                        <option value="">Select Room</option>
+                                        {rooms
+                                            .filter(r => r.dormId === formData.dormId)
+                                            .map(room => (
+                                                <option key={room.id} value={room.id}>{room.room_number}</option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
+                            )}
                             {role === 'admin' && (
                                 <input
                                     type="password"

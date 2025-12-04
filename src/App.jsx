@@ -14,6 +14,7 @@ import OrderDetail from './pages/Customer/OrderDetail';
 import ActiveOrders from './pages/Customer/ActiveOrders';
 import MerchantDashboard from './pages/Merchant/MerchantDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import FinanceDashboard from './pages/Admin/FinanceDashboard';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { currentUser } = useApp();
@@ -26,6 +27,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         // Redirect based on role
         if (currentUser.role === 'merchant') return <Navigate to="/merchant" replace />;
         if (currentUser.role === 'admin') return <Navigate to="/admin" replace />;
+        if (currentUser.role === 'finance') return <Navigate to="/finance" replace />;
         return <Navigate to="/customer" replace />;
     }
 
@@ -81,6 +83,13 @@ function AppRoutes() {
             <Route path="/admin" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                     <AdminDashboard />
+                </ProtectedRoute>
+            } />
+
+            {/* Finance Routes */}
+            <Route path="/finance" element={
+                <ProtectedRoute allowedRoles={['finance']}>
+                    <FinanceDashboard />
                 </ProtectedRoute>
             } />
 

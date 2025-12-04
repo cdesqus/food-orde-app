@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X, MessageCircle, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -58,10 +58,29 @@ const MerchantDashboard = () => {
     const [activeChatOrder, setActiveChatOrder] = useState(null);
     const [chatMessage, setChatMessage] = useState('');
 
+    // Toast Notification for Completed Orders
+    const prevOrdersRef = useRef(orders);
+
+    useEffect(() => {
+        const prevOrders = prevOrdersRef.current;
+        orders.forEach(order => {
+            const prevOrder = prevOrders.find(o => o.id === order.id);
+            if (prevOrder && prevOrder.status === 'delivered_to_shelter' && order.status === 'completed' && order.items.some(i => i.merchantId === currentUser.id)) {
+                showAlert('Success', `Order #${order.id.slice(-4)} completed by customer. Funds added to balance.`);
+            }
+        });
+        prevOrdersRef.current = orders;
+    }, [orders, currentUser.id, showAlert]);
+
     // Arrived Modal State
     const [showArrivedModal, setShowArrivedModal] = useState(false);
     const [arrivedOrder, setArrivedOrder] = useState(null);
     const [arrivedPhoto, setArrivedPhoto] = useState('');
+
+    // Rejection Modal State
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectOrder, setRejectOrder] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
 
     // Form State
     const [foodForm, setFoodForm] = useState({
@@ -84,11 +103,13 @@ const MerchantDashboard = () => {
         return dateB - dateA;
     });
 
-    const totalSales = myOrders.reduce((sum, order) => {
-        const myItems = order.items.filter(item => item.merchantId === currentUser.id);
-        const orderTotal = myItems.reduce((s, item) => s + (item.price * item.quantity), 0);
-        return sum + orderTotal;
-    }, 0);
+    const totalSales = myOrders
+        .filter(o => !['cancelled', 'rejected'].includes(o.status))
+        .reduce((sum, order) => {
+            const myItems = order.items.filter(item => item.merchantId === currentUser.id);
+            const orderTotal = myItems.reduce((s, item) => s + (item.price * item.quantity), 0);
+            return sum + orderTotal;
+        }, 0);
 
     // Calculate Available Balance (Completed Orders - Withdrawals)
     const completedRevenue = myOrders
@@ -226,12 +247,29 @@ const MerchantDashboard = () => {
     const handleOrderAction = (orderId, action, extraData = {}) => {
         // action: 'accepted' | 'rejected' | 'completed'
 
+        if (action === 'rejected') {
+            const order = orders.find(o => o.id === orderId);
+            setRejectOrder(order);
+            setShowRejectModal(true);
+            return;
+        }
+
         // Send message first to ensure status isn't read-only yet
         if (action === 'delivered_to_shelter') {
             sendMessage(orderId, currentUser.id, "Makanan udah sampe di titik jemput nih! Buruan ambil sebelum dingin ya! 📍🏃💨", extraData.proofPhoto);
         }
 
         updateOrder(orderId, action, extraData);
+    };
+
+    const handleConfirmReject = () => {
+        if (!rejectOrder || !rejectReason.trim()) return;
+
+        updateOrder(rejectOrder.id, 'cancelled', { rejection_reason: rejectReason });
+        setShowRejectModal(false);
+        setRejectOrder(null);
+        setRejectReason('');
+        showAlert('Order Rejected', 'Order has been cancelled.');
     };
 
     const handleArrivedSubmit = (e) => {
@@ -300,9 +338,13 @@ const MerchantDashboard = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div>
-                                <h3 style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Total Revenue</h3>
+                                <h3 style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Total Earnings</h3>
                                 <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-secondary)' }}>
                                     Rp {totalSales.toLocaleString()}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    (Net Revenue / Pendapatan Bersih)
+                                    <div title="Excludes Platform Fees" style={{ cursor: 'help' }}>ⓘ</div>
                                 </div>
                             </div>
                             <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'rgba(46, 213, 115, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -406,9 +448,16 @@ const MerchantDashboard = () => {
                         >
                             <form onSubmit={handleSubmitFood} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <input placeholder="Item Name" value={foodForm.name} onChange={e => setFoodForm({ ...foodForm, name: e.target.value })} required style={inputStyle} />
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <input placeholder="Price" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
-                                    <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={inputStyle}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <input placeholder="Net Price (Your Earnings)" type="number" value={foodForm.price} onChange={e => setFoodForm({ ...foodForm, price: e.target.value })} required style={inputStyle} />
+                                        {foodForm.price && (
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                                                Customer pays: <span style={{ color: 'var(--color-neon-green)' }}>Rp {(Number(foodForm.price) + Math.floor(Number(foodForm.price) * 0.15)).toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <select value={foodForm.category} onChange={e => setFoodForm({ ...foodForm, category: e.target.value })} style={{ ...inputStyle, flex: 1 }}>
                                         <option>Fast Food</option>
                                         <option>Drinks</option>
                                         <option>Dessert</option>
@@ -527,10 +576,11 @@ const MerchantDashboard = () => {
                                             <div style={{ textAlign: 'right' }}>
                                                 <span style={{
                                                     color: ['completed', 'cooking', 'accepted', 'delivered_to_shelter'].includes(order.status) ? 'var(--color-neon-green)' :
-                                                        order.status === 'pending' ? 'var(--color-electric-blue)' : 'white',
+                                                        order.status === 'pending' ? 'var(--color-electric-blue)' :
+                                                            ['cancelled', 'rejected'].includes(order.status) ? 'var(--color-hot-pink)' : 'white',
                                                     fontWeight: 'bold', display: 'block', marginBottom: '4px'
                                                 }}>
-                                                    {order.status.toUpperCase()}
+                                                    {order.status.toUpperCase().replace(/_/g, ' ')}
                                                 </span>
                                                 {/* Location Display */}
                                                 {(() => {
@@ -549,6 +599,13 @@ const MerchantDashboard = () => {
                                             <div style={{ fontStyle: 'italic' }}>&quot;{order.notes || 'No notes'}&quot;</div>
                                         </div>
 
+                                        {['cancelled', 'rejected'].includes(order.status) && order.rejection_reason && (
+                                            <div style={{ marginBottom: '10px', background: 'rgba(255, 0, 0, 0.1)', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-hot-pink)' }}>
+                                                <div style={{ fontSize: '0.9rem', marginBottom: '5px', color: 'var(--color-hot-pink)', fontWeight: 'bold' }}>Rejection Reason:</div>
+                                                <div style={{ fontStyle: 'italic', color: 'var(--color-text-main)' }}>&quot;{order.rejection_reason}&quot;</div>
+                                            </div>
+                                        )}
+
                                         <div style={{ marginBottom: '10px' }}>
                                             {order.items.filter(item => item.merchantId === currentUser.id).map((item, idx) => (
                                                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '5px' }}>
@@ -561,7 +618,12 @@ const MerchantDashboard = () => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', paddingTop: '10px', borderTop: '1px solid var(--color-border)' }}>
                                             <div>
                                                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Payment: {order.paymentMethod.toUpperCase()}</div>
-                                                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Total: Rp {order.total.toLocaleString()}</div>
+                                                <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--color-secondary)' }}>
+                                                    Your Earnings: Rp {order.items.filter(item => item.merchantId === currentUser.id).reduce((s, item) => s + (item.price * item.quantity), 0).toLocaleString()}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                                    (Customer Total: Rp {order.total.toLocaleString()})
+                                                </div>
 
                                                 {/* Chat Button */}
                                                 {['cooking', 'delivered_to_shelter'].includes(order.status) && (
@@ -606,7 +668,9 @@ const MerchantDashboard = () => {
                                                     }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-electric-blue)', color: 'black', fontWeight: 'bold', cursor: 'pointer' }}>Mark Arrived at Shelter</button>
                                                 )}
                                                 {order.status === 'delivered_to_shelter' && (
-                                                    <button onClick={() => handleOrderAction(order.id, 'completed')} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', background: 'var(--color-primary)', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Complete Order</button>
+                                                    <span style={{ padding: '8px 12px', borderRadius: '20px', background: 'rgba(255, 193, 7, 0.2)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                                        Waiting for Customer Confirmation
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>
@@ -831,6 +895,64 @@ const MerchantDashboard = () => {
                         Notify Customer
                     </button>
                 </form>
+            </Modal>
+
+            {/* Rejection Modal */}
+            <Modal
+                isOpen={showRejectModal}
+                onClose={() => setShowRejectModal(false)}
+                title="Reject Order"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                        Please provide a reason for rejecting this order. This will be visible to the customer and admin.
+                    </p>
+                    <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="e.g., Out of stock, Closing soon..."
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--color-border)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--color-text-main)',
+                            minHeight: '100px',
+                            resize: 'vertical'
+                        }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                        <button
+                            onClick={() => setShowRejectModal(false)}
+                            style={{
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--color-border)',
+                                background: 'transparent',
+                                color: 'var(--color-text-muted)',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleConfirmReject}
+                            disabled={!rejectReason.trim()}
+                            style={{
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: rejectReason.trim() ? 'var(--color-hot-pink)' : 'gray',
+                                color: 'white',
+                                cursor: rejectReason.trim() ? 'pointer' : 'not-allowed',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            Confirm Reject
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div >
     );

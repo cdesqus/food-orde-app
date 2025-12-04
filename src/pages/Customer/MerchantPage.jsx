@@ -7,7 +7,7 @@ import Navbar from '../../components/Navbar';
 
 const MerchantPage = () => {
     const { merchantId } = useParams();
-    const { users, foods, showConfirm } = useApp();
+    const { users, foods, showConfirm, getDisplayPrice } = useApp();
     const navigate = useNavigate();
 
     const [cart, setCart] = useState(() => JSON.parse(localStorage.getItem('cart') || '[]'));
@@ -61,7 +61,7 @@ const MerchantPage = () => {
     };
 
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const totalPrice = cart.reduce((sum, item) => sum + (getDisplayPrice(item.price) * item.quantity), 0);
 
     if (!merchant) return <div style={{ padding: '20px' }}>Merchant not found</div>;
 

@@ -6,7 +6,7 @@ import { MapPin, Trash, Plus, Minus, CreditCard, QrCode, Wallet } from 'lucide-r
 import Modal from '../../components/Modal';
 
 const Cart = () => {
-    const { shelters, placeOrder, currentUser, showAlert } = useApp();
+    const { shelters, placeOrder, currentUser, showAlert, getDisplayPrice } = useApp();
     const [cartItems, setCartItems] = useState([]);
     const [selectedShelter, setSelectedShelter] = useState('');
     const [notes, setNotes] = useState('');
@@ -40,10 +40,36 @@ const Cart = () => {
         updateCart(newItems);
     };
 
-    const total = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const baseTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const displayTotal = cartItems.reduce((sum, item) => sum + (getDisplayPrice(item.price) * item.quantity), 0);
+    const handlingFee = displayTotal - baseTotal;
+    const total = displayTotal;
+
+    const isShelterOpen = (shelter) => {
+        if (!shelter.opening_time || !shelter.closing_time) return true;
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const [openH, openM] = shelter.opening_time.split(':').map(Number);
+        const [closeH, closeM] = shelter.closing_time.split(':').map(Number);
+
+        const openMinutes = openH * 60 + openM;
+        const closeMinutes = closeH * 60 + closeM;
+
+        if (closeMinutes < openMinutes) {
+            return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+        }
+        return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+    };
 
     const handleCheckout = () => {
         if (!selectedShelter) return showAlert('Error', 'Please select a delivery pinpoint!');
+
+        const shelter = shelters.find(s => s.id === selectedShelter);
+        if (shelter && !isShelterOpen(shelter)) {
+            return showAlert('Error', 'Selected location is currently closed.');
+        }
+
         if (cartItems.length === 0) return showAlert('Error', 'Your cart is empty!');
         setShowPaymentModal(true);
     };
@@ -80,7 +106,7 @@ const Cart = () => {
                                             <Trash size={18} />
                                         </button>
                                     </div>
-                                    <p style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>Rp {item.price.toLocaleString()}</p>
+                                    <p style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>Rp {getDisplayPrice(item.price).toLocaleString()}</p>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
                                         <button onClick={() => handleQuantity(item.id, -1)} style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid var(--color-border)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -114,30 +140,49 @@ const Cart = () => {
                                 <MapPin size={20} color="var(--color-secondary)" /> Delivery Pinpoint
                             </h3>
                             <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                                {shelters.map(shelter => (
-                                    <button
-                                        key={shelter.id}
-                                        onClick={() => setSelectedShelter(shelter.id)}
-                                        style={{
-                                            padding: '0.8rem 1.2rem',
-                                            borderRadius: 'var(--radius-md)',
-                                            border: selectedShelter === shelter.id ? '1px solid var(--color-secondary)' : '1px solid var(--color-border)',
-                                            background: selectedShelter === shelter.id ? 'rgba(46, 213, 115, 0.1)' : 'var(--color-bg-surface)',
-                                            color: 'var(--color-text-main)',
-                                            whiteSpace: 'nowrap',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        {shelter.name}
-                                    </button>
-                                ))}
+                                {shelters.map(shelter => {
+                                    const isOpen = isShelterOpen(shelter);
+                                    return (
+                                        <button
+                                            key={shelter.id}
+                                            onClick={() => isOpen && setSelectedShelter(shelter.id)}
+                                            disabled={!isOpen}
+                                            style={{
+                                                padding: '0.8rem 1.2rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                border: selectedShelter === shelter.id ? '1px solid var(--color-secondary)' : '1px solid var(--color-border)',
+                                                background: selectedShelter === shelter.id ? 'rgba(46, 213, 115, 0.1)' : (isOpen ? 'var(--color-bg-surface)' : 'rgba(0,0,0,0.05)'),
+                                                color: isOpen ? 'var(--color-text-main)' : 'var(--color-text-muted)',
+                                                whiteSpace: 'nowrap',
+                                                cursor: isOpen ? 'pointer' : 'not-allowed',
+                                                opacity: isOpen ? 1 : 0.6,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                minWidth: '120px'
+                                            }}
+                                        >
+                                            <span style={{ fontWeight: '500' }}>{shelter.name}</span>
+                                            {!isOpen && (
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--color-hot-pink)' }}>
+                                                    Closed ({shelter.opening_time} - {shelter.closing_time})
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
                         <div className="glass-panel" style={{ marginTop: '2rem', padding: '1.5rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                                <span>Total</span>
+                                <span>Total Payment</span>
                                 <span style={{ color: 'var(--color-primary)' }}>Rp {total.toLocaleString()}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                                <span>Includes Platform Fee (15%)</span>
+                                <span>Rp {handlingFee.toLocaleString()}</span>
                             </div>
                             <button onClick={handleCheckout} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
                                 CHECKOUT

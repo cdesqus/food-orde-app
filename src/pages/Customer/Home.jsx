@@ -6,7 +6,7 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import { Search, MapPin } from 'lucide-react';
 
 const Home = () => {
-    const { currentUser, foods, users } = useApp();
+    const { currentUser, foods, users, getDisplayPrice } = useApp();
     const [searchTerm, setSearchTerm] = useState('');
     const navigate = useNavigate();
 
@@ -107,7 +107,7 @@ const Home = () => {
                                                 by {merchant?.name}
                                             </p>
                                             <div style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                                                Rp {food.price.toLocaleString()}
+                                                Rp {getDisplayPrice(food.price).toLocaleString()}
                                             </div>
                                         </div>
                                     </div>

@@ -1,7 +1,9 @@
 
 import { Plus, Minus } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
+    const { getDisplayPrice } = useApp();
     return (
         <div className="glass-panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ height: '160px', overflow: 'hidden', position: 'relative' }}>
@@ -29,7 +31,7 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price</span>
                         <span style={{ color: 'var(--color-neon-green)', fontWeight: '700', fontSize: '1.1rem' }}>
-                            Rp {food.price.toLocaleString()}
+                            Rp {getDisplayPrice(food.price).toLocaleString()}
                         </span>
                     </div>
 
