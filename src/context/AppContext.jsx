@@ -344,7 +344,40 @@ export const AppProvider = ({ children }) => {
   });
 
   useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
+  useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
   useEffect(() => { localStorage.setItem('rooms', JSON.stringify(rooms)); }, [rooms]);
+
+  // Vendor Invoices
+  const [vendorInvoices, setVendorInvoices] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vendorInvoices');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to parse vendorInvoices', e);
+      return [];
+    }
+  });
+
+  useEffect(() => { localStorage.setItem('vendorInvoices', JSON.stringify(vendorInvoices)); }, [vendorInvoices]);
+
+  const createVendorInvoice = (invoiceData) => {
+    const newInvoice = {
+      ...invoiceData,
+      id: `inv-${Date.now()}`,
+      status: 'unpaid', // unpaid | paid
+      createdAt: new Date().toISOString()
+    };
+    setVendorInvoices([...vendorInvoices, newInvoice]);
+    return { success: true };
+  };
+
+  const updateVendorInvoiceStatus = (id, status) => {
+    setVendorInvoices(vendorInvoices.map(inv => inv.id === id ? { ...inv, status } : inv));
+  };
+
+  const deleteVendorInvoice = (id) => {
+    setVendorInvoices(vendorInvoices.filter(inv => inv.id !== id));
+  };
 
   const addDorm = (name, location_area) => {
     const newDorm = { id: `d${Date.now()}`, name, location_area };
@@ -456,6 +489,7 @@ export const AppProvider = ({ children }) => {
       login, logout, register, toggleUserStatus, createUser, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
       addShelter, updateShelter, deleteShelter, requestWithdrawal, updateWithdrawalStatus, sendMessage,
       addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
+      vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice,
       showAlert, showConfirm, getDisplayPrice
     }}>
       {children}

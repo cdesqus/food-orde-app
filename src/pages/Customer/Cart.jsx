@@ -180,10 +180,7 @@ const Cart = () => {
                                 <span>Total Payment</span>
                                 <span style={{ color: 'var(--color-primary)' }}>Rp {total.toLocaleString()}</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
-                                <span>Includes Platform Fee (15%)</span>
-                                <span>Rp {handlingFee.toLocaleString()}</span>
-                            </div>
+
                             <button onClick={handleCheckout} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
                                 CHECKOUT
                             </button>

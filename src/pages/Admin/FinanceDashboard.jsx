@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LogOut, DollarSign, PieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { LogOut, DollarSign, PieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText, Server, Download, Trash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 const FinanceDashboard = () => {
-    const { currentUser, logout, orders, withdrawals, updateWithdrawalStatus, users } = useApp();
+    const { currentUser, logout, orders, withdrawals, updateWithdrawalStatus, users, vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice, showAlert, showConfirm } = useApp();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, transactions, withdrawals, reports
+    const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, transactions, withdrawals, reports, vendor_invoices
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [transactionFilter, setTransactionFilter] = useState('All');
+
+    // Vendor Invoice State
+    const [invoiceMonth, setInvoiceMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
     const handleLogout = () => {
         logout();
@@ -49,6 +53,46 @@ const FinanceDashboard = () => {
         return m ? m.name : 'Unknown Merchant';
     };
 
+    // Vendor Bill Calculation
+    const vendorBillData = useMemo(() => {
+        const [year, month] = invoiceMonth.split('-');
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0, 23, 59, 59); // Last day of month
+
+        const monthlyOrders = orders.filter(o => {
+            const d = new Date(o.timestamp);
+            return o.status === 'completed' && d >= startDate && d <= endDate;
+        });
+
+        const totalGMV = monthlyOrders.reduce((sum, o) => sum + o.total, 0);
+        const variableFee = totalGMV * 0.023;
+        const totalBill = variableFee;
+
+        return {
+            period: invoiceMonth,
+            totalGMV,
+            variableFee,
+            totalBill,
+            orderCount: monthlyOrders.length
+        };
+    }, [orders, invoiceMonth]);
+
+    const handleGenerateInvoice = () => {
+        // Check if invoice already exists for this month
+        if (vendorInvoices.find(inv => inv.period === invoiceMonth)) {
+            showAlert('Error', 'Invoice for this month already exists.');
+            return;
+        }
+
+        if (vendorBillData.totalGMV === 0) {
+            showAlert('Error', 'No billable amount for this month.');
+            return;
+        }
+
+        createVendorInvoice(vendorBillData);
+        showAlert('Success', 'Vendor invoice generated successfully!');
+    };
+
     const menuItems = [
         {
             section: 'MAIN',
@@ -58,7 +102,8 @@ const FinanceDashboard = () => {
             section: 'FINANCIALS',
             items: [
                 { id: 'transactions', label: 'Transactions', icon: List },
-                { id: 'withdrawals', label: 'Withdrawals', icon: CheckCircle, badge: withdrawals.filter(w => w.status === 'pending').length }
+                { id: 'withdrawals', label: 'Withdrawals', icon: CheckCircle, badge: withdrawals.filter(w => w.status === 'pending').length },
+                { id: 'vendor_invoices', label: 'Vendor Invoices', icon: Server }
             ]
         },
         {
@@ -202,8 +247,6 @@ const FinanceDashboard = () => {
                         </div>
                     )}
 
-
-
                     {activeTab === 'transactions' && (
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -335,6 +378,156 @@ const FinanceDashboard = () => {
                                                                 </button>
                                                             </div>
                                                         )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'vendor_invoices' && (
+                        <div>
+                            <h1 style={{ marginBottom: '20px' }}>Vendor Invoices</h1>
+
+                            {/* Section A: Bill Generator */}
+                            <div className="glass-panel" style={{ padding: '20px', marginBottom: '30px' }}>
+                                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <Server size={20} /> Bill Generator
+                                </h2>
+                                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>Select Month</label>
+                                        <input
+                                            type="month"
+                                            value={invoiceMonth}
+                                            onChange={(e) => setInvoiceMonth(e.target.value)}
+                                            style={{
+                                                padding: '10px',
+                                                borderRadius: '8px',
+                                                border: '1px solid #e5e7eb',
+                                                background: '#ffffff',
+                                                color: '#1f2937',
+                                                fontSize: '1rem'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', background: 'rgba(0,0,0,0.02)', padding: '15px', borderRadius: '12px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total GMV (Completed)</div>
+                                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Rp {vendorBillData.totalGMV.toLocaleString()}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{vendorBillData.orderCount} Orders</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Variable Fee (2.3%)</div>
+                                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-electric-blue)' }}>Rp {vendorBillData.variableFee.toLocaleString()}</div>
+                                    </div>
+                                    <div style={{ borderLeft: '2px solid var(--color-border)', paddingLeft: '15px' }}>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Bill Due</div>
+                                        <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--color-primary)' }}>Rp {vendorBillData.totalBill.toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={handleGenerateInvoice}
+                                        className="btn-primary"
+                                        style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}
+                                    >
+                                        <FileText size={18} />
+                                        Generate Invoice
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Section B: Invoice History */}
+                            <div className="glass-panel" style={{ padding: '20px' }}>
+                                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Invoice History</h2>
+                                {vendorInvoices.length === 0 ? (
+                                    <p style={{ color: 'var(--color-text-muted)' }}>No invoices generated yet.</p>
+                                ) : (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                                <th style={{ padding: '10px' }}>Invoice ID</th>
+                                                <th style={{ padding: '10px' }}>Period</th>
+                                                <th style={{ padding: '10px' }}>Total GMV</th>
+                                                <th style={{ padding: '10px' }}>Maint. Fee (2.3%)</th>
+                                                <th style={{ padding: '10px' }}>Total Payout</th>
+                                                <th style={{ padding: '10px' }}>Status</th>
+                                                <th style={{ padding: '10px' }}>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {vendorInvoices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(inv => (
+                                                <tr key={inv.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <td style={{ padding: '10px', fontSize: '0.9rem' }}>#{inv.id.slice(-6)}</td>
+                                                    <td style={{ padding: '10px', fontWeight: 'bold' }}>{inv.period}</td>
+                                                    <td style={{ padding: '10px' }}>Rp {inv.totalGMV.toLocaleString()}</td>
+                                                    <td style={{ padding: '10px' }}>Rp {inv.variableFee.toLocaleString()}</td>
+                                                    <td style={{ padding: '10px', fontWeight: 'bold', color: 'var(--color-primary)' }}>Rp {inv.totalBill.toLocaleString()}</td>
+                                                    <td style={{ padding: '10px' }}>
+                                                        <span style={{
+                                                            padding: '4px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.8rem',
+                                                            background: inv.status === 'paid' ? 'rgba(46, 213, 115, 0.1)' : 'rgba(255, 71, 87, 0.1)',
+                                                            color: inv.status === 'paid' ? 'var(--color-secondary)' : 'var(--color-hot-pink)'
+                                                        }}>
+                                                            {inv.status.toUpperCase()}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '10px' }}>
+                                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                                            {inv.status === 'unpaid' && (
+                                                                <button
+                                                                    onClick={() => updateVendorInvoiceStatus(inv.id, 'paid')}
+                                                                    style={{
+                                                                        background: 'var(--color-secondary)',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '4px',
+                                                                        padding: '6px 10px',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: '0.8rem'
+                                                                    }}
+                                                                >
+                                                                    Mark as Paid
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => showAlert('Info', 'PDF Download feature coming soon.')}
+                                                                style={{
+                                                                    background: 'transparent',
+                                                                    border: '1px solid var(--color-border)',
+                                                                    color: 'var(--color-text-main)',
+                                                                    borderRadius: '4px',
+                                                                    padding: '6px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                                title="Download PDF"
+                                                            >
+                                                                <Download size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => showConfirm('Delete Invoice', 'Are you sure you want to delete this invoice?', () => deleteVendorInvoice(inv.id))}
+                                                                style={{
+                                                                    background: 'transparent',
+                                                                    border: '1px solid var(--color-hot-pink)',
+                                                                    color: 'var(--color-hot-pink)',
+                                                                    borderRadius: '4px',
+                                                                    padding: '6px',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                                title="Delete Invoice"
+                                                            >
+                                                                <Trash size={16} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
