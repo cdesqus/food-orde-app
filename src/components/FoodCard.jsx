@@ -2,7 +2,7 @@
 import { Plus, Minus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
+const FoodCard = ({ food, onAdd, onRemove, quantity = 0, disabled = false, disabledText = 'Unavailable' }) => {
     const { getDisplayPrice } = useApp();
     return (
         <div className="glass-panel" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -47,16 +47,17 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                             marginLeft: '10px'
                         }}>
                             <button
-                                onClick={() => onRemove(food)}
+                                onClick={() => !disabled && onRemove(food)}
+                                disabled={disabled}
                                 style={{
                                     background: 'var(--color-bg-main)',
                                     border: '1px solid var(--color-border)',
                                     borderRadius: '50%',
                                     width: '24px',
                                     height: '24px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: disabled ? 'not-allowed' : 'pointer',
                                     color: 'var(--color-text-main)',
-                                    transition: 'all 0.2s',
+                                    opacity: disabled ? 0.5 : 1,
                                     padding: 0
                                 }}
                             >
@@ -70,16 +71,17 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                                 fontVariantNumeric: 'tabular-nums'
                             }}>{quantity}</span>
                             <button
-                                onClick={() => onAdd(food)}
+                                onClick={() => !disabled && onAdd(food)}
+                                disabled={disabled}
                                 style={{
                                     background: 'var(--color-electric-blue)',
                                     border: 'none',
                                     borderRadius: '50%',
                                     width: '24px',
                                     height: '24px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: disabled ? 'not-allowed' : 'pointer',
                                     color: 'black',
-                                    boxShadow: '0 0 10px rgba(46, 213, 115, 0.2)',
+                                    opacity: disabled ? 0.5 : 1,
                                     padding: 0
                                 }}
                             >
@@ -88,27 +90,27 @@ const FoodCard = ({ food, onAdd, onRemove, quantity = 0 }) => {
                         </div>
                     ) : (
                         <button
-                            onClick={() => onAdd(food)}
+                            onClick={() => !disabled && onAdd(food)}
+                            className={disabled ? 'btn-disabled' : ''}
+                            disabled={disabled}
                             style={{
-                                background: 'var(--color-electric-blue)',
+                                background: disabled ? '#333' : 'var(--color-electric-blue)',
                                 border: 'none',
                                 borderRadius: '12px',
                                 padding: '6px 12px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                cursor: 'pointer',
-                                color: 'black',
+                                cursor: disabled ? 'not-allowed' : 'pointer',
+                                color: disabled ? '#aaa' : 'black',
                                 fontWeight: 'bold',
                                 fontSize: '0.8rem',
                                 marginLeft: '10px',
                                 transition: 'transform 0.1s',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                boxShadow: disabled ? 'none' : '0 4px 12px rgba(0,0,0,0.2)'
                             }}
-                            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
-                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
                         >
-                            Add <Plus size={16} />
+                            {disabled ? (disabledText || 'Closed') : <>Add <Plus size={16} /></>}
                         </button>
                     )}
                 </div>

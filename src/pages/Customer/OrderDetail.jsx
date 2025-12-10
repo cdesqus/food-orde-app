@@ -75,7 +75,12 @@ const OrderDetail = () => {
                     <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-neon-green)' }}>
                         <ArrowLeft />
                     </button>
-                    <h1 style={{ fontSize: '1.2rem', margin: 0 }}>Order #{order.id.slice(-4)}</h1>
+                    <div>
+                        <h1 style={{ fontSize: '1.2rem', margin: 0 }}>Order #{order.id.slice(-4)}</h1>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                            Estimasi Pengantaran: Hari ini, 14:00 - 16:30 WIB
+                        </p>
+                    </div>
                 </div>
 
                 {/* Tracker */}

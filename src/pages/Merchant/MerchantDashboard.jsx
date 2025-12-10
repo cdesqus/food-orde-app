@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X, MessageCircle, Send } from 'lucide-react';
+import { Plus, Trash2, Edit2, Package, Menu as MenuIcon, LogOut, CheckCircle, BarChart2, Eye, EyeOff, DollarSign, X, MessageCircle, Send, ClipboardList } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Modal from '../../components/Modal';
 
@@ -41,7 +41,7 @@ const compressImage = (file) => {
 
 const MerchantDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'week' | 'month' | 'year'
-    const { currentUser, logout, foods, addFood, updateFood, deleteFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage, shelters, showAlert, showConfirm } = useApp();
+    const { currentUser, logout, foods, addFood, updateFood, deleteFood, orders, updateOrder, users, withdrawals, requestWithdrawal, messages, sendMessage, shelters, showAlert, showConfirm, orderingPhase } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'menu' | 'orders'
     const [showAddFood, setShowAddFood] = useState(false);
     const [editingFood, setEditingFood] = useState(null);
@@ -102,6 +102,33 @@ const MerchantDashboard = () => {
         const dateB = b.timestamp ? new Date(b.timestamp) : new Date(0);
         return dateB - dateA;
     });
+
+    const handlePrintRecap = () => {
+        // Summarize items to cook (Pending + Cooking)
+        const relevantOrders = myOrders.filter(o => ['pending', 'cooking'].includes(o.status));
+        const itemSummary = {};
+
+        relevantOrders.forEach(order => {
+            order.items.filter(i => i.merchantId === currentUser.id).forEach(item => {
+                if (itemSummary[item.name]) {
+                    itemSummary[item.name] += item.quantity;
+                } else {
+                    itemSummary[item.name] = item.quantity;
+                }
+            });
+        });
+
+        let summaryText = "DAILY RECAP (Items to Cook):\n\n";
+        if (Object.keys(itemSummary).length === 0) {
+            summaryText += "No active items to cook.";
+        } else {
+            Object.entries(itemSummary).forEach(([name, qty]) => {
+                summaryText += `- ${name}: ${qty}\n`;
+            });
+        }
+
+        showAlert('Daily Recap', summaryText);
+    };
 
     const totalSales = myOrders
         .filter(o => !['cancelled', 'rejected'].includes(o.status))
@@ -293,6 +320,28 @@ const MerchantDashboard = () => {
         width: '100%'
     };
 
+    const getPhaseBadge = () => {
+        if (orderingPhase === 'ORDERING') {
+            return (
+                <div style={{ background: 'var(--color-hot-pink)', color: 'white', padding: '5px 10px', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    🔴 ORDERING PHASE (Incoming)
+                </div>
+            );
+        } else if (orderingPhase === 'COOKING') {
+            return (
+                <div style={{ background: 'var(--color-neon-green)', color: 'black', padding: '5px 10px', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    🟢 COOKING PHASE (Stop Orders)
+                </div>
+            );
+        } else {
+            return (
+                <div style={{ background: 'var(--color-text-muted)', color: 'white', padding: '5px 10px', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    ⚫ CLOSED
+                </div>
+            );
+        }
+    };
+
     return (
         <div style={{ minHeight: '100vh', paddingBottom: '80px' }}>
             {/* Header */}
@@ -311,7 +360,10 @@ const MerchantDashboard = () => {
                     </div>
                     <div>
                         <h1 style={{ fontSize: '1.2rem' }}>{currentUser.name}</h1>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Merchant Dashboard</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Merchant Dashboard</p>
+                            {getPhaseBadge()}
+                        </div>
                     </div>
                 </div>
                 <button onClick={logout} style={{ background: 'transparent', border: 'none', color: 'var(--color-primary)' }}>
@@ -559,6 +611,24 @@ const MerchantDashboard = () => {
                 {/* ORDERS TAB */}
                 {activeTab === 'orders' && (
                     <div style={{ display: 'grid', gap: '15px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                            <button
+                                onClick={handlePrintRecap}
+                                style={{
+                                    padding: '10px 16px',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    background: 'var(--color-electric-blue)',
+                                    color: 'black',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '8px'
+                                }}
+                            >
+                                <ClipboardList size={18} /> Print Daily Recap
+                            </button>
+                        </div>
+
                         {myOrders.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
                                 No orders yet.

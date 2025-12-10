@@ -6,12 +6,94 @@ const AppContext = createContext();
 export const useApp = () => useContext(AppContext);
 
 export const AppProvider = ({ children }) => {
-  // Mock Data & Persistence
+  // --- RBAC SYSTEM ---
+  const AVAILABLE_PERMISSIONS = [
+    { slug: 'user.view', label: 'View Users', group: 'User Management' },
+    { slug: 'user.create', label: 'Create User', group: 'User Management' },
+    { slug: 'user.edit', label: 'Edit User', group: 'User Management' },
+    { slug: 'finance.topup', label: 'Manual Top Up', group: 'Finance Operations' },
+    { slug: 'finance.withdraw.approve', label: 'Approve Withdrawals', group: 'Finance Operations' },
+    { slug: 'finance.report.view', label: 'View Reports', group: 'Finance Operations' },
+    { slug: 'merchant.verify', label: 'Verify Merchants', group: 'Merchant Ops' },
+    { slug: 'merchant.suspend', label: 'Suspend Merchants', group: 'Merchant Ops' },
+    { slug: 'order.monitor.food', label: 'Monitor Food Orders', group: 'Order Monitoring' },
+    { slug: 'order.monitor.laundry', label: 'Monitor Laundry Orders', group: 'Order Monitoring' }
+  ];
+
+  const [roles, setRoles] = useState(() => {
+    try {
+      const saved = localStorage.getItem('roles');
+      if (saved) return JSON.parse(saved);
+
+      // Default Super Admin Role
+      return [
+        {
+          id: 'role_super_admin',
+          name: 'Super Admin',
+          description: 'Full access to all features',
+          permissions: AVAILABLE_PERMISSIONS.map(p => p.slug),
+          isSystem: true // Prevent deletion
+        },
+        {
+          id: 'role_finance',
+          name: 'Finance Staff',
+          description: 'manage finance operations',
+          permissions: ['finance.topup', 'finance.withdraw.approve', 'finance.report.view'],
+          isSystem: false
+        }
+      ];
+    } catch (e) {
+      console.error('Failed to parse roles', e);
+      return [];
+    }
+  });
+
+  useEffect(() => { localStorage.setItem('roles', JSON.stringify(roles)); }, [roles]);
+
+  const addRole = (roleData) => {
+    const newRole = { ...roleData, id: `role_${Date.now()}` };
+    setRoles([...roles, newRole]);
+    return { success: true };
+  };
+
+  const updateRole = (id, updates) => {
+    setRoles(roles.map(r => r.id === id ? { ...r, ...updates } : r));
+    return { success: true };
+  };
+
+  const deleteRole = (id) => {
+    setRoles(roles.filter(r => r.id !== id));
+    return { success: true };
+  };
+
+  const hasPermission = (permissionSlug) => {
+    if (!currentUser) return false;
+    if (currentUser.role !== 'admin') return false; // RBAC currently only for admins
+
+    // Find user's assigned role
+    // Assuming 'adminRoleId' is the link. For backward compatibility, if field missing, check if it's the main admin
+
+    let userRole = null;
+    if (currentUser.id === 'admin') {
+      // Force Super Admin for the hardcoded 'admin' user
+      userRole = roles.find(r => r.id === 'role_super_admin');
+    } else if (currentUser.adminRoleId) {
+      userRole = roles.find(r => r.id === currentUser.adminRoleId);
+    }
+
+    if (!userRole) return false;
+
+    // Super Admin Bypass
+    if (userRole.id === 'role_super_admin') return true;
+
+    return userRole.permissions.includes(permissionSlug);
+  };
+
   const [users, setUsers] = useState(() => {
     try {
       const saved = localStorage.getItem('users');
       let initialUsers = saved ? JSON.parse(saved) : [
-        { id: 'admin', name: 'Admin User', role: 'admin', email: 'admin@food.com', password: '123', approved: true },
+        { id: 'admin', name: 'Admin User', role: 'admin', email: 'admin@food.com', password: '123', approved: true, adminRoleId: 'role_super_admin' },
         // 5 Merchants
         { id: 'm1', name: 'Neon Burger', role: 'merchant', email: 'burger@food.com', password: '123', approved: true, phone: '08123456789', photo: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=500', description: 'Best burgers in 2077' },
         { id: 'm2', name: 'Sushi Synth', role: 'merchant', email: 'sushi@food.com', password: '123', approved: true, phone: '08123456788', photo: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=500', description: 'Fresh from the digital ocean' },
@@ -19,14 +101,25 @@ export const AppProvider = ({ children }) => {
         { id: 'm4', name: 'Taco Tech', role: 'merchant', email: 'taco@food.com', password: '123', approved: true, phone: '08123456786', photo: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=500', description: 'Crunchy code' },
         { id: 'm5', name: 'Noodle Net', role: 'merchant', email: 'noodle@food.com', password: '123', approved: true, phone: '08123456785', photo: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=500', description: 'Connected by flavor' },
         // Customer
-        { id: 'c1', name: 'John Doe', role: 'customer', email: 'john@food.com', password: '123', balance: 500000, approved: true, phone: '08123456000' },
+        { id: 'c1', name: 'John Doe', role: 'customer', email: 'john@food.com', password: '123', balance: 500000, approved: true, phone: '08123456000', nis: '12345', birthDate: '2010-01-01' },
+        // Parent
+        { id: 'p1', name: 'Parent User', role: 'parent', email: 'parent@food.com', password: '123', approved: true, phone: '08199999999' },
         // Finance
-        { id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true }
+        { id: 'fin1', name: 'Finance Officer', role: 'admin', email: 'finance@food.com', password: '123', approved: true, adminRoleId: 'role_finance' } // Changed role to admin but with finance role link
       ];
 
       // Fix for existing localStorage: Ensure Finance user exists
       if (!initialUsers.find(u => u.email === 'finance@food.com')) {
-        initialUsers.push({ id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true });
+        initialUsers.push({ id: 'fin1', name: 'Finance Officer', role: 'admin', email: 'finance@food.com', password: '123', approved: true, adminRoleId: 'role_finance' });
+      }
+      if (!initialUsers.find(u => u.email === 'parent@food.com')) {
+        initialUsers.push({ id: 'p1', name: 'Parent User', role: 'parent', email: 'parent@food.com', password: '123', approved: true, phone: '08199999999' });
+      }
+
+      // Ensure admin user has correct role ID if coming from old storage
+      const adminUser = initialUsers.find(u => u.id === 'admin');
+      if (adminUser && !adminUser.adminRoleId) {
+        adminUser.adminRoleId = 'role_super_admin';
       }
 
       return initialUsers;
@@ -99,6 +192,45 @@ export const AppProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('orders', JSON.stringify(orders)); }, [orders]);
   useEffect(() => { localStorage.setItem('messages', JSON.stringify(messages)); }, [messages]);
 
+  // --- SINGLE DAILY BATCH LOGIC ---
+  // Rules: Open 08:00 - 13:00. Cutoff 13:00 SHARP.
+  const [serverTime, setServerTime] = useState(new Date());
+
+  useEffect(() => {
+    // Update time every minute (or second if we want precise countdowns)
+    const timer = setInterval(() => setServerTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getSystemStatus = () => {
+    const hour = serverTime.getHours();
+    const minute = serverTime.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    // 08:00 = 480 mins
+    // 13:00 = 780 mins
+
+    const isOpen = totalMinutes >= 480 && totalMinutes < 780;
+
+    let phase = 'CLOSED_FOR_DAY'; // Default
+    if (totalMinutes < 480) phase = 'NOT_OPEN_YET';
+    else if (isOpen) phase = 'ORDERING';
+    else phase = 'COOKING'; // >= 13:00
+
+    // Time Remaining for Ordering Phase
+    let remainingStr = '';
+    if (phase === 'ORDERING') {
+      const remainingTotal = 780 - totalMinutes;
+      const h = Math.floor(remainingTotal / 60);
+      const m = remainingTotal % 60;
+      remainingStr = `${h}h ${m}m remaining`;
+    }
+
+    return { isOpen, phase, remainingStr };
+  };
+
+  const { isOpen: isOrderingOpen, phase: orderingPhase, remainingStr: timeRemaining } = getSystemStatus();
+
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('currentUser');
@@ -147,7 +279,7 @@ export const AppProvider = ({ children }) => {
       setFoods(prev => [...prev, ...newFoods]);
     }
 
-    return { success: true };
+    return { success: true, user: newUser };
   };
 
   const toggleUserStatus = (id, status) => {
@@ -203,6 +335,15 @@ export const AppProvider = ({ children }) => {
   const placeOrder = (cartItems, shelterId, notes, paymentMethod) => {
     if (!currentUser) return { success: false, message: 'Not logged in' };
 
+    // Strict Server-Side Check for Cutoff
+    if (!isOrderingOpen) {
+      return { success: false, message: 'Order hari ini sudah tutup. Silakan pesan besok pagi jam 08:00.' };
+    }
+
+    // Determine who the order is for (Receiver) and who is paying (Payer)
+    const receiver = orderingFor || currentUser;
+    const payer = currentUser;
+
     // Calculate totals based on Item Level to match Customer UI
     let totalBasePrice = 0;
     let totalDisplayPrice = 0;
@@ -226,18 +367,25 @@ export const AppProvider = ({ children }) => {
     const totalPlatformFee = totalDisplayPrice - totalBasePrice;
 
     if (paymentMethod === 'wallet') {
-      if ((currentUser.balance || 0) < totalDisplayPrice) {
+      if ((payer.balance || 0) < totalDisplayPrice) {
         return { success: false, message: 'Insufficient balance' };
       }
-      // Deduct balance
-      const updatedUser = { ...currentUser, balance: currentUser.balance - totalDisplayPrice };
-      setCurrentUser(updatedUser);
-      setUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
+      // Deduct balance from PAYER
+      const updatedPayer = { ...payer, balance: payer.balance - totalDisplayPrice };
+
+      // Update local state for currentUser immediately if they are the payer
+      if (currentUser.id === payer.id) {
+        setCurrentUser(updatedPayer);
+      }
+
+      // Update users list
+      setUsers(users.map(u => u.id === payer.id ? updatedPayer : u));
     }
 
     const newOrder = {
       id: `ord-${Date.now()}`,
-      customerId: currentUser.id,
+      customerId: receiver.id, // The Student (Receiver)
+      orderedById: payer.id,   // The Parent (Payer)
       items: enrichedItems, // Stores breakdown per item
       basePrice: totalBasePrice, // Merchant Payout
       handlingFee: totalPlatformFee, // Platform Profit
@@ -259,7 +407,7 @@ export const AppProvider = ({ children }) => {
     const summaryMsg = {
       id: `msg-${Date.now()}`,
       orderId: newOrder.id,
-      senderId: currentUser.id,
+      senderId: payer.id, // Message sent by Payer
       text: summaryText,
       timestamp: new Date().toISOString()
     };
@@ -269,8 +417,110 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  // Incident Reports State
+  const [incidentReports, setIncidentReports] = useState(() => {
+    try {
+      const saved = localStorage.getItem('incidentReports');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Failed to parse incidentReports', e);
+      return [];
+    }
+  });
+
+  useEffect(() => { localStorage.setItem('incidentReports', JSON.stringify(incidentReports)); }, [incidentReports]);
+
+  const reportIncident = (orderId, merchantId, type, description, evidence) => {
+    const newReport = {
+      id: `rep-${Date.now()}`,
+      orderId,
+      merchantId,
+      customerId: currentUser?.id,
+      type, // 'Wrong Food', 'Bad Quality', 'Late Delivery', 'Rude Behavior'
+      description,
+      evidence, // URL or base64
+      status: 'pending', // 'pending', 'resolved', 'escalated'
+      timestamp: new Date().toISOString()
+    };
+    setIncidentReports([...incidentReports, newReport]);
+    return { success: true };
+  };
+
+  const updateIncidentReport = (id, status, adminNotes = '') => {
+    setIncidentReports(incidentReports.map(rep =>
+      rep.id === id ? { ...rep, status, adminNotes } : rep
+    ));
+  };
+
+
+  // Merchant Suspension Logic
+  const suspendMerchant = (merchantId, durationDays, reason) => {
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === merchantId) {
+        return {
+          ...u,
+          status: 'SUSPENDED', // 'ACTIVE', 'SUSPENDED', 'PERMANENT_BAN'
+          suspension_end_date: endDate.toISOString(),
+          suspension_reason: reason
+        };
+      }
+      return u;
+    }));
+    return { success: true };
+  };
+
+  const unsuspendMerchant = (merchantId) => {
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === merchantId) {
+        return {
+          ...u,
+          status: 'ACTIVE',
+          suspension_end_date: null,
+          suspension_reason: null
+        };
+      }
+      return u;
+    }));
+    return { success: true };
+  };
+
+  // Check for expired suspensions (Auto-Unsuspend)
+  useEffect(() => {
+    const now = new Date();
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.status === 'SUSPENDED' && u.suspension_end_date) {
+        const end = new Date(u.suspension_end_date);
+        if (now >= end) {
+          // Auto unsuspend
+          return { ...u, status: 'ACTIVE', suspension_end_date: null, suspension_reason: null };
+        }
+      }
+      return u;
+    }));
+  }, []); // Run once on mount
+
+
   const updateOrder = (orderId, status, additionalData = {}) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status, ...additionalData } : o));
+    let updates = { status, ...additionalData };
+
+    // Late Delivery Detection
+    if (status === 'delivered_to_shelter') {
+      const now = serverTime; // Use the synchronized serverTime
+      const cutoff = new Date(now);
+      cutoff.setHours(16, 30, 0, 0);
+
+      if (now > cutoff) {
+        const diffMs = now - cutoff;
+        const minutesLate = Math.ceil(diffMs / 60000);
+        updates.is_late_delivery = true;
+        updates.minutes_late = minutesLate;
+      }
+    }
+
+    setOrders(orders.map(o => o.id === orderId ? { ...o, ...updates } : o));
   };
 
   const [shelters, setShelters] = useState(() => {
@@ -483,14 +733,94 @@ export const AppProvider = ({ children }) => {
     });
   };
 
+  const [familyLinks, setFamilyLinks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('familyLinks');
+      let links = saved ? JSON.parse(saved) : [];
+
+      // Ensure default link p1 -> c1 exists for demo
+      if (!links.find(l => l.parentId === 'p1' && l.studentId === 'c1')) {
+        links.push({ id: 'fl-1', parentId: 'p1', studentId: 'c1', createdAt: new Date().toISOString() });
+      }
+
+      return links;
+    } catch (e) {
+      console.error('Failed to parse familyLinks', e);
+      return [];
+    }
+  });
+
+  useEffect(() => { localStorage.setItem('familyLinks', JSON.stringify(familyLinks)); }, [familyLinks]);
+
+  const [orderingFor, setOrderingFor] = useState(() => {
+    try {
+      const saved = localStorage.getItem('orderingFor');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (orderingFor) {
+      localStorage.setItem('orderingFor', JSON.stringify(orderingFor));
+    } else {
+      localStorage.removeItem('orderingFor');
+    }
+  }, [orderingFor]);
+
+  // Update orderingFor when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      // If not set (e.g. fresh login), default to current user
+      // On refresh, it will be restored from localStorage so this won't overwrite
+      setOrderingFor(prev => prev || currentUser);
+    } else {
+      setOrderingFor(null);
+    }
+  }, [currentUser]);
+
+  const linkFamily = (parentId, studentId) => {
+    // Check if already linked
+    if (familyLinks.find(l => l.parentId === parentId && l.studentId === studentId)) {
+      return { success: false, message: 'Already linked' };
+    }
+    const newLink = {
+      id: `fl-${Date.now()}`,
+      parentId,
+      studentId,
+      createdAt: new Date().toISOString()
+    };
+    setFamilyLinks([...familyLinks, newLink]);
+    return { success: true };
+  };
+
+  const unlinkFamily = (linkId) => {
+    setFamilyLinks(familyLinks.filter(l => l.id !== linkId));
+  };
+
+  const getFamilyMembers = (parentId) => {
+    const links = familyLinks.filter(l => l.parentId === parentId);
+    return links.map(l => {
+      const student = users.find(u => u.id === l.studentId);
+      return { ...student, linkId: l.id };
+    }).filter(s => s && s.id); // Filter out any nulls if user deleted
+  };
+
+
+
   return (
     <AppContext.Provider value={{
-      users, currentUser, foods, orders, shelters, withdrawals, messages, dorms, rooms,
+      users, currentUser, foods, orders, shelters, withdrawals, messages, dorms, rooms, familyLinks, orderingFor, setOrderingFor,
+      incidentReports, reportIncident, updateIncidentReport, suspendMerchant, unsuspendMerchant,
+      roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS,
       login, logout, register, toggleUserStatus, createUser, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
       addShelter, updateShelter, deleteShelter, requestWithdrawal, updateWithdrawalStatus, sendMessage,
       addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
       vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice,
-      showAlert, showConfirm, getDisplayPrice
+      linkFamily, unlinkFamily, getFamilyMembers,
+      showAlert, showConfirm, getDisplayPrice,
+      isOrderingOpen, orderingPhase, timeRemaining, serverTime
     }}>
       {children}
       <ConfirmationModal

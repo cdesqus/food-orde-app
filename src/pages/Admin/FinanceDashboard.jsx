@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LogOut, DollarSign, PieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText, Server, Download, Trash } from 'lucide-react';
+import { LogOut, DollarSign, PieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText, Server, Download, Trash, Baby } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 
@@ -280,6 +280,7 @@ const FinanceDashboard = () => {
                                             <th style={{ padding: '10px' }}>Order ID</th>
                                             <th style={{ padding: '10px' }}>Date</th>
                                             <th style={{ padding: '10px' }}>Merchant</th>
+                                            <th style={{ padding: '10px' }}>Customer</th>
                                             <th style={{ padding: '10px' }}>Gross Amount</th>
                                             <th style={{ padding: '10px' }}>Platform Fee (15%)</th>
                                             <th style={{ padding: '10px' }}>Merchant Payout</th>
@@ -295,27 +296,47 @@ const FinanceDashboard = () => {
                                                 return order.status === normalizedFilter;
                                             })
                                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                                            .map(order => (
-                                                <tr key={order.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <td style={{ padding: '10px', fontSize: '0.9rem' }}>{order.id}</td>
-                                                    <td style={{ padding: '10px', fontSize: '0.9rem' }}>{new Date(order.timestamp).toLocaleString()}</td>
-                                                    <td style={{ padding: '10px', fontSize: '0.9rem' }}>{getMerchantName(order.items?.[0]?.merchantId) || '-'}</td>
-                                                    <td style={{ padding: '10px', fontWeight: 'bold' }}>Rp {(order.total || 0).toLocaleString()}</td>
-                                                    <td style={{ padding: '10px', color: 'var(--color-neon-green)' }}>Rp {(order.handlingFee || 0).toLocaleString()}</td>
-                                                    <td style={{ padding: '10px', color: 'var(--color-electric-blue)' }}>Rp {(order.basePrice || 0).toLocaleString()}</td>
-                                                    <td style={{ padding: '10px' }}>
-                                                        <span style={{
-                                                            padding: '2px 8px',
-                                                            borderRadius: '4px',
-                                                            fontSize: '0.8rem',
-                                                            background: order.status === 'completed' ? 'rgba(46, 213, 115, 0.1)' : 'rgba(255, 255, 255, 0.1)',
-                                                            color: order.status === 'completed' ? 'var(--color-secondary)' : 'var(--color-text-muted)'
-                                                        }}>
-                                                            {order.status.replace(/_/g, ' ')}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            .map(order => {
+                                                const customer = users.find(u => u.id === order.customerId);
+                                                const payer = order.orderedById ? users.find(u => u.id === order.orderedById) : null;
+                                                const isParentOrder = payer && payer.id !== customer?.id;
+
+                                                return (
+                                                    <tr key={order.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <td style={{ padding: '10px', fontSize: '0.9rem' }}>{order.id}</td>
+                                                        <td style={{ padding: '10px', fontSize: '0.9rem' }}>{new Date(order.timestamp).toLocaleString()}</td>
+                                                        <td style={{ padding: '10px', fontSize: '0.9rem' }}>{getMerchantName(order.items?.[0]?.merchantId) || '-'}</td>
+                                                        <td style={{ padding: '10px', fontSize: '0.9rem' }}>
+                                                            {isParentOrder ? (
+                                                                <div>
+                                                                    <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-primary)' }}>
+                                                                        {payer.name} <Baby size={14} />
+                                                                    </div>
+                                                                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                                                        for {customer?.name || 'Unknown'}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                customer?.name || 'Unknown'
+                                                            )}
+                                                        </td>
+                                                        <td style={{ padding: '10px', fontWeight: 'bold' }}>Rp {(order.total || 0).toLocaleString()}</td>
+                                                        <td style={{ padding: '10px', color: 'var(--color-neon-green)' }}>Rp {(order.handlingFee || 0).toLocaleString()}</td>
+                                                        <td style={{ padding: '10px', color: 'var(--color-electric-blue)' }}>Rp {(order.basePrice || 0).toLocaleString()}</td>
+                                                        <td style={{ padding: '10px' }}>
+                                                            <span style={{
+                                                                padding: '2px 8px',
+                                                                borderRadius: '4px',
+                                                                fontSize: '0.8rem',
+                                                                background: order.status === 'completed' ? 'rgba(46, 213, 115, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+                                                                color: order.status === 'completed' ? 'var(--color-secondary)' : 'var(--color-text-muted)'
+                                                            }}>
+                                                                {order.status.replace(/_/g, ' ')}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                     </tbody>
                                 </table>
                             </div>

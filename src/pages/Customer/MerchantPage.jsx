@@ -7,7 +7,7 @@ import Navbar from '../../components/Navbar';
 
 const MerchantPage = () => {
     const { merchantId } = useParams();
-    const { users, foods, showConfirm, getDisplayPrice } = useApp();
+    const { users, foods, showConfirm, getDisplayPrice, isOrderingOpen, showAlert } = useApp();
     const navigate = useNavigate();
 
     const [cart, setCart] = useState(() => JSON.parse(localStorage.getItem('cart') || '[]'));
@@ -20,6 +20,11 @@ const MerchantPage = () => {
     }, [cart]);
 
     const handleAddToCart = (food) => {
+        if (!isOrderingOpen) {
+            showAlert('Toko Tutup', 'Order hari ini sudah tutup. Silakan pesan besok pagi jam 08:00.');
+            return;
+        }
+
         if (cart.length > 0) {
             const currentMerchantId = cart[0].merchantId;
             if (currentMerchantId !== food.merchantId) {
@@ -124,6 +129,8 @@ const MerchantPage = () => {
                             onAdd={handleAddToCart}
                             onRemove={handleRemoveFromCart}
                             quantity={getQuantity(food.id)}
+                            disabled={!isOrderingOpen}
+                            disabledText="Toko Tutup"
                         />
                     ))}
                 </div>

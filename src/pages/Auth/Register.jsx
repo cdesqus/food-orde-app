@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { User, Store } from 'lucide-react';
+import { User, Store, Baby } from 'lucide-react';
 
 const Register = () => {
-    const [role, setRole] = useState('customer'); // customer | merchant
+    const [role, setRole] = useState('customer'); // customer | merchant | parent
     const [step, setStep] = useState(1); // 1: Basic Info, 2: Merchant Details (if merchant)
 
     const [formData, setFormData] = useState({
@@ -15,7 +15,13 @@ const Register = () => {
         // Merchant specific
         merchantIdFile: '', // Simulated file path/name
         merchantPhoto: '',
-        description: ''
+        description: '',
+        // Customer specific
+        dormId: '',
+        roomId: '',
+        // Parent specific
+        studentNis: '',
+        studentDob: ''
     });
 
     const [initialFoods, setInitialFoods] = useState([
@@ -24,7 +30,7 @@ const Register = () => {
         { name: '', price: '', image: '', description: '', category: 'Fast Food' }
     ]);
 
-    const { register, showAlert, dorms, rooms } = useApp();
+    const { register, showAlert, dorms, rooms, users, linkFamily, login } = useApp();
     const navigate = useNavigate();
 
     const handleFoodChange = (index, field, value) => {
@@ -38,6 +44,38 @@ const Register = () => {
 
         if (role === 'merchant' && step === 1) {
             setStep(2);
+            return;
+        }
+
+        if (role === 'parent') {
+            // Verify Student
+            const student = users.find(u => u.role === 'customer' && u.nis === formData.studentNis && u.birthDate === formData.studentDob);
+            if (!student) {
+                showAlert('Error', 'Data Santri tidak ditemukan atau Tanggal Lahir salah.');
+                return;
+            }
+
+            // Register Parent
+            const res = register({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                phone: formData.phone,
+                role: 'parent',
+                approved: true // Parents auto-approved for now? Or wait? Req says "Redirect to Dashboard", implying immediate access.
+            });
+
+            if (res.success && res.user) {
+                // Link Family
+                linkFamily(res.user.id, student.id);
+
+                // Auto Login
+                login(formData.email, formData.password);
+                showAlert('Success', 'Parent account created and linked!');
+                navigate('/');
+            } else {
+                showAlert('Error', res.message);
+            }
             return;
         }
 
@@ -91,7 +129,23 @@ const Register = () => {
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem'
                             }}
                         >
-                            <User /> Customer
+                            <User /> Student
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRole('parent')}
+                            style={{
+                                flex: 1,
+                                padding: '1rem',
+                                borderRadius: 'var(--radius-sm)',
+                                border: role === 'parent' ? '1px solid var(--color-electric-blue)' : '1px solid var(--color-border)',
+                                background: role === 'parent' ? 'rgba(46, 134, 222, 0.1)' : 'transparent',
+                                color: role === 'parent' ? 'var(--color-electric-blue)' : 'var(--color-text-muted)',
+                                cursor: 'pointer',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem'
+                            }}
+                        >
+                            <Baby /> Parent
                         </button>
                         <button
                             type="button"
@@ -108,22 +162,6 @@ const Register = () => {
                             }}
                         >
                             <Store /> Merchant
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setRole('admin')}
-                            style={{
-                                flex: 1,
-                                padding: '1rem',
-                                borderRadius: 'var(--radius-sm)',
-                                border: role === 'admin' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                background: role === 'admin' ? 'rgba(255, 71, 87, 0.1)' : 'transparent',
-                                color: role === 'admin' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                                cursor: 'pointer',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem'
-                            }}
-                        >
-                            <User /> Admin
                         </button>
                     </div>
                 )}
@@ -164,6 +202,36 @@ const Register = () => {
                                 style={inputStyle}
                             />
 
+                            {/* Parent Specific Fields */}
+                            {role === 'parent' && (
+                                <div className="glass-panel" style={{ padding: '1rem', border: '1px solid var(--color-electric-blue)' }}>
+                                    <h3 style={{ fontSize: '0.9rem', marginBottom: '10px', color: 'var(--color-electric-blue)' }}>Link Student (Verifikasi Data Santri)</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Student NIS (Nomor Induk Siswa)"
+                                            required
+                                            value={formData.studentNis}
+                                            onChange={(e) => setFormData({ ...formData, studentNis: e.target.value })}
+                                            style={inputStyle}
+                                        />
+                                        <div>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '5px', display: 'block' }}>Student Date of Birth</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={formData.studentDob}
+                                                onChange={(e) => setFormData({ ...formData, studentDob: e.target.value })}
+                                                style={inputStyle}
+                                            />
+                                        </div>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                            Masukkan data anak untuk verifikasi otomatis.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Dorm & Room Selection for Customer */}
                             {role === 'customer' && (
                                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -194,21 +262,6 @@ const Register = () => {
                                         }
                                     </select>
                                 </div>
-                            )}
-                            {role === 'admin' && (
-                                <input
-                                    type="password"
-                                    placeholder="Admin Secret Code"
-                                    required
-                                    onChange={(e) => {
-                                        if (e.target.value !== 'admin123') {
-                                            e.target.setCustomValidity('Invalid Secret Code');
-                                        } else {
-                                            e.target.setCustomValidity('');
-                                        }
-                                    }}
-                                    style={inputStyle}
-                                />
                             )}
                         </>
                     ) : (

@@ -1,16 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 import FoodCard from '../../components/FoodCard';
 import CustomerLayout from '../../layouts/CustomerLayout';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, ChevronDown } from 'lucide-react';
 
 const Home = () => {
-    const { currentUser, foods, users, getDisplayPrice } = useApp();
+    const { currentUser, foods, users, getDisplayPrice, getFamilyMembers, orderingFor, setOrderingFor, serverTime } = useApp();
     const [searchTerm, setSearchTerm] = useState('');
     const navigate = useNavigate();
 
     const activeFoods = foods.filter(f => f.active);
+
+    // Status Badge Logic
+    const statusBadge = useMemo(() => {
+        if (!serverTime) return null;
+        const now = new Date(serverTime);
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const time = hours + minutes / 60;
+
+        let text = "Closed";
+        let color = "#e5e7eb"; // Light gray text for dark bg? No, banner is gradient.
+        // Banner text is white. 
+        // Request: "Subtle background color with a dot indicator."
+        // Let's use specific colors for the badge itself.
+        // Status Colors:
+        // Open: Green
+        // Cooking: Orange
+        // Delivering: Blue
+        // Closed: Gray
+
+        let badgeColor = "#9ca3af"; // Icon/Text color
+        let badgeBg = "rgba(0, 0, 0, 0.3)"; // Background
+
+        if (time >= 8 && time < 13) {
+            text = "Open 08:00-13:00";
+            badgeColor = "#4ade80"; // Bright Green
+            badgeBg = "rgba(0, 0, 0, 0.2)";
+        } else if (time >= 13 && time < 14) {
+            text = "Cooking Phase";
+            badgeColor = "#fbbf24"; // Amber
+            badgeBg = "rgba(0, 0, 0, 0.2)";
+        } else if (time >= 14 && time < 16.5) {
+            text = "Delivering";
+            badgeColor = "#60a5fa"; // Blue
+            badgeBg = "rgba(0, 0, 0, 0.2)";
+        }
+
+        return { text, color: badgeColor, bg: badgeBg };
+    }, [serverTime]);
 
     // Filter logic
     const filteredFoods = activeFoods.filter(food =>
@@ -23,6 +62,8 @@ const Home = () => {
         navigate(`/customer/merchant/${food.merchantId}`);
     };
 
+    const familyMembers = currentUser?.role === 'parent' ? getFamilyMembers(currentUser.id) : [];
+
     return (
         <CustomerLayout>
             {/* Banner */}
@@ -34,20 +75,104 @@ const Home = () => {
                 marginBottom: '2rem',
                 boxShadow: '0 10px 30px rgba(255, 71, 87, 0.3)'
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                     <div>
                         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Hello, {currentUser.name.split(' ')[0]}! 👋</h1>
-                        <p style={{ opacity: 0.9 }}>Hungry for something new?</p>
+
+                        {/* Parent Context Switcher */}
+                        {currentUser.role === 'parent' && (
+                            <div className="dropdown-container" style={{ position: 'relative', marginTop: '5px', display: 'inline-block' }}>
+                                <button className="glass-panel" style={{
+                                    padding: '5px 12px',
+                                    borderRadius: '20px',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    border: 'none',
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem'
+                                }}>
+                                    Ordering for: <strong>{orderingFor ? orderingFor.name : 'Me'}</strong>
+                                    <ChevronDown size={14} />
+                                </button>
+                                <div className="dropdown-content" style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    background: 'white',
+                                    color: 'black',
+                                    borderRadius: '10px',
+                                    padding: '5px',
+                                    minWidth: '150px',
+                                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                                    zIndex: 10,
+                                    display: 'none', // CSS hover needed or state
+                                    marginTop: '5px'
+                                }}>
+                                    <div
+                                        onClick={() => setOrderingFor(currentUser)}
+                                        style={{ padding: '8px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem' }}
+                                        onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                    >
+                                        Myself ({currentUser.name})
+                                    </div>
+                                    {familyMembers.map(member => (
+                                        <div
+                                            key={member.id}
+                                            onClick={() => setOrderingFor(member)}
+                                            style={{ padding: '8px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem' }}
+                                            onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
+                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                        >
+                                            {member.name}
+                                        </div>
+                                    ))}
+                                </div>
+                                <style>{`
+                                    .dropdown-container:hover .dropdown-content {
+                                        display: block;
+                                    }
+                                `}</style>
+                            </div>
+                        )}
+
+                        {currentUser.role !== 'parent' && <p style={{ opacity: 0.9 }}>Hungry for something new?</p>}
                     </div>
-                    <div style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '20px',
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        backdropFilter: 'blur(10px)'
-                    }}>
-                        <MapPin size={16} />
-                        <span style={{ fontSize: '0.9rem' }}>Jakarta, ID</span>
+
+                    {/* Right Side: Status & Location */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                        {/* Status Badge */}
+                        {statusBadge && (
+                            <div style={{
+                                background: statusBadge.bg,
+                                color: 'white',
+                                padding: '4px 10px',
+                                borderRadius: '12px',
+                                fontSize: '0.75rem',
+                                fontWeight: 'bold',
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                backdropFilter: 'blur(4px)',
+                                border: '1px solid rgba(255,255,255,0.1)'
+                            }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusBadge.color, boxShadow: `0 0 5px ${statusBadge.color}` }}></div>
+                                {statusBadge.text}
+                            </div>
+                        )}
+
+                        {/* Location Pill */}
+                        <div style={{
+                            background: 'rgba(255,255,255,0.2)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '20px',
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            backdropFilter: 'blur(10px)'
+                        }}>
+                            <MapPin size={16} />
+                            <span style={{ fontSize: '0.9rem' }}>Jakarta, ID</span>
+                        </div>
                     </div>
                 </div>
 

@@ -6,7 +6,7 @@ import { MapPin, Trash, Plus, Minus, CreditCard, QrCode, Wallet } from 'lucide-r
 import Modal from '../../components/Modal';
 
 const Cart = () => {
-    const { shelters, placeOrder, currentUser, showAlert, getDisplayPrice } = useApp();
+    const { shelters, placeOrder, currentUser, showAlert, getDisplayPrice, orderingFor, isOrderingOpen } = useApp();
     const [cartItems, setCartItems] = useState([]);
     const [selectedShelter, setSelectedShelter] = useState('');
     const [notes, setNotes] = useState('');
@@ -25,6 +25,9 @@ const Cart = () => {
     };
 
     const handleQuantity = (id, delta) => {
+        // If closed, prevent increasing quantity? Maybe allow adjusting existing cart but not checkout?
+        // User asked to disable "Add to Cart" but for Cart "Disable the 'Checkout' button".
+        // I will allow adjusting quantity in cart.
         const newItems = cartItems.map(item => {
             if (item.id === id) {
                 const newQty = item.quantity + delta;
@@ -63,6 +66,10 @@ const Cart = () => {
     };
 
     const handleCheckout = () => {
+        if (!isOrderingOpen) {
+            return showAlert('Toko Tutup', 'Order hari ini sudah tutup. Silakan pesan besok pagi jam 08:00.');
+        }
+
         if (!selectedShelter) return showAlert('Error', 'Please select a delivery pinpoint!');
 
         const shelter = shelters.find(s => s.id === selectedShelter);
@@ -90,7 +97,14 @@ const Cart = () => {
     return (
         <CustomerLayout>
             <div style={{ padding: '20px', paddingBottom: '100px' }}>
-                <h1 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Your Cart</h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h1 style={{ fontSize: '1.5rem' }}>Your Cart</h1>
+                    {orderingFor && orderingFor.id !== currentUser.id && (
+                        <div style={{ fontSize: '0.9rem', color: 'var(--color-primary)', background: 'rgba(46, 213, 115, 0.1)', padding: '5px 10px', borderRadius: '15px' }}>
+                            For: <strong>{orderingFor.name}</strong>
+                        </div>
+                    )}
+                </div>
 
                 {cartItems.length === 0 ? (
                     <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', marginTop: '2rem' }}>Cart is empty.</p>
@@ -181,8 +195,13 @@ const Cart = () => {
                                 <span style={{ color: 'var(--color-primary)' }}>Rp {total.toLocaleString()}</span>
                             </div>
 
-                            <button onClick={handleCheckout} className="btn-primary" style={{ width: '100%', padding: '1rem' }}>
-                                CHECKOUT
+                            <button
+                                onClick={handleCheckout}
+                                className={isOrderingOpen ? "btn-primary" : "btn-disabled"}
+                                disabled={!isOrderingOpen}
+                                style={{ width: '100%', padding: '1rem', background: isOrderingOpen ? 'var(--color-primary)' : '#333', color: isOrderingOpen ? 'black' : '#aaa', cursor: isOrderingOpen ? 'pointer' : 'not-allowed' }}
+                            >
+                                {isOrderingOpen ? "CHECKOUT" : "Toko Tutup (Order Closed)"}
                             </button>
                         </div>
                     </>

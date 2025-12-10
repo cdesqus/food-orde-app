@@ -1,16 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X, FileText, Download, Home, Building, ClipboardList, Menu, ChevronLeft, ChevronRight, Eye, Fingerprint, Info } from 'lucide-react';
+import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X, FileText, Download, Home, Building, ClipboardList, Menu, ChevronLeft, ChevronRight, Eye, Fingerprint, Info, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Modal from '../../components/Modal';
 
 const AdminDashboard = () => {
-    const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom } = useApp();
-    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'verification' | 'users' | 'locations' | 'dorms' | 'reports'
+    const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom, getFamilyMembers, linkFamily, unlinkFamily, incidentReports, updateIncidentReport, suspendMerchant, roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS } = useApp();
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'verification' | 'users' | 'locations' | 'dorms' | 'reports' | 'issues' | 'roles'
     const [showAddUser, setShowAddUser] = useState(false);
-    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'admin' });
+    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'admin', adminRoleId: '' });
 
     // Modal State
     const [modal, setModal] = useState({
@@ -20,6 +20,21 @@ const AdminDashboard = () => {
         onConfirm: null,
         isAlert: false
     });
+
+    // Suspension Modal State
+    const [showSuspendModal, setShowSuspendModal] = useState(false);
+    const [suspendTarget, setSuspendTarget] = useState(null);
+    const [suspendForm, setSuspendForm] = useState({ duration: '7', reason: '' });
+
+    const handleSuspendSubmit = () => {
+        if (suspendTarget && suspendForm.reason) {
+            suspendMerchant(suspendTarget.id, parseInt(suspendForm.duration), suspendForm.reason);
+            setShowSuspendModal(false);
+            setSuspendTarget(null);
+            setSuspendForm({ duration: '7', reason: '' });
+            showAlert('Success', 'Merchant has been suspended.');
+        }
+    };
 
     const showConfirm = (title, message, onConfirm) => {
         setModal({ isOpen: true, title, message, onConfirm, isAlert: false });
@@ -39,7 +54,7 @@ const AdminDashboard = () => {
     // Edit User State
     const [editingUser, setEditingUser] = useState(null);
     const [showEditUserModal, setShowEditUserModal] = useState(false);
-    const [editUserForm, setEditUserForm] = useState({ name: '', email: '', password: '', dormId: '', roomId: '' });
+    const [editUserForm, setEditUserForm] = useState({ name: '', email: '', password: '', dormId: '', roomId: '', adminRoleId: '' });
 
     // Edit Shelter State
     const [editingShelter, setEditingShelter] = useState(null);
@@ -60,6 +75,13 @@ const AdminDashboard = () => {
     const [editingRoom, setEditingRoom] = useState(null);
     const [showEditRoomModal, setShowEditRoomModal] = useState(false);
     const [editRoomForm, setEditRoomForm] = useState({ room_number: '' });
+
+    // Family Management State
+    const [viewingParent, setViewingParent] = useState(null);
+    const [showFamilyModal, setShowFamilyModal] = useState(false);
+    const [showAddChildModal, setShowAddChildModal] = useState(false);
+    const [childSearchForm, setChildSearchForm] = useState({ nis: '', dob: '' });
+    const [foundChild, setFoundChild] = useState(null);
 
     // Order Monitor State
     const [orderMonitorTab, setOrderMonitorTab] = useState('in_progress'); // 'in_progress' | 'at_shelter' | 'history'
@@ -88,6 +110,57 @@ const AdminDashboard = () => {
                 }
             }, 1000);
         }, 2000);
+    };
+
+    // Role Management State
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [editingRole, setEditingRole] = useState(null);
+    const [roleForm, setRoleForm] = useState({ name: '', description: '', permissions: [] });
+
+    // Family Management Handlers
+    const handleViewFamily = (parent) => {
+        setViewingParent(parent);
+        setShowFamilyModal(true);
+    };
+
+    const handleUnlinkChild = (childId) => {
+        if (viewingParent) {
+            showConfirm('Unlink Child', 'Are you sure you want to unlink this student?', () => {
+                unlinkFamily(viewingParent.id, childId);
+                // Refresh the modal view is handled by reactivity, but we might need to force update or just rely on state
+                setModal(prev => ({ ...prev, isOpen: false }));
+            });
+        }
+    };
+
+    const handleSearchChild = (e) => {
+        e.preventDefault();
+        const student = users.find(u =>
+            u.role === 'customer' &&
+            u.email.startsWith(childSearchForm.nis) && // Assuming NIS is email prefix
+            u.birthDate === childSearchForm.dob
+        );
+
+        if (student) {
+            setFoundChild(student);
+        } else {
+            setFoundChild(null);
+            showAlert('Not Found', 'No student found with these details.');
+        }
+    };
+
+    const handleAddChild = () => {
+        if (viewingParent && foundChild) {
+            const result = linkFamily(viewingParent.id, foundChild.id);
+            if (result.success) {
+                setShowAddChildModal(false);
+                setFoundChild(null);
+                setChildSearchForm({ nis: '', dob: '' });
+                showAlert('Success', 'Child linked successfully!');
+            } else {
+                showAlert('Error', result.message);
+            }
+        }
     };
 
 
@@ -178,7 +251,7 @@ const AdminDashboard = () => {
         const result = createUser(newUserForm);
         if (result.success) {
             setShowAddUser(false);
-            setNewUserForm({ name: '', email: '', password: '', role: 'admin' });
+            setNewUserForm({ name: '', email: '', password: '', role: 'admin', adminRoleId: '' });
             showAlert('Success', 'User added successfully!');
         } else {
             showAlert('Error', result.message);
@@ -191,26 +264,29 @@ const AdminDashboard = () => {
     const menuItems = [
         {
             section: 'MAIN',
-            items: [{ id: 'dashboard', label: 'Dashboard', icon: BarChart2 }]
-        },
-        {
-            section: 'OPERATIONS',
             items: [
-                { id: 'orders', label: 'Order Monitor', icon: ClipboardList },
-                { id: 'verification', label: 'Verification', icon: CheckCircle, badge: pendingMerchants.length + pendingCustomers.length }
+                { id: 'dashboard', label: 'Dashboard', icon: Home },
+                { id: 'orders', label: 'Order Monitor', icon: Activity, permission: 'order.monitor.food' },
+                { id: 'issues', label: 'Merchant Issues', icon: AlertTriangle, badge: incidentReports.filter(r => r.status === 'pending').length, permission: 'merchant.suspend' },
             ]
         },
         {
-            section: 'MASTER DATA',
+            section: 'MANAGEMENT',
             items: [
-                { id: 'users', label: 'User List', icon: Users },
-                { id: 'dorms', label: 'Dorm Management', icon: Home },
-                { id: 'locations', label: 'Locations', icon: MapPin }
+                { id: 'verification', label: 'Verifications', icon: CheckCircle, badge: (users.filter(u => !u.approved && u.role !== 'admin').length), permission: 'merchant.verify' },
+                { id: 'users', label: 'Users', icon: Users, permission: 'user.view' },
+                { id: 'locations', label: 'Locations', icon: MapPin },
+                { id: 'dorms', label: 'Dorms & Rooms', icon: Building },
+                { id: 'family', label: 'Family Manager', icon: Users, permission: 'user.view' }
             ]
         },
         {
             section: 'ANALYTICS',
-            items: [{ id: 'reports', label: 'Reports', icon: FileText }]
+            items: [{ id: 'reports', label: 'Reports', icon: FileText, permission: 'finance.report.view' }]
+        },
+        {
+            section: 'SYSTEM',
+            items: [{ id: 'roles', label: 'Roles & Permissions', icon: Key, systemOnly: true }]
         }
     ];
 
@@ -244,6 +320,15 @@ const AdminDashboard = () => {
                             {isSidebarOpen && <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '10px', paddingLeft: '10px', fontWeight: 'bold' }}>{section.section}</div>}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                 {section.items.map(item => {
+                                    // RBAC CHECKS
+                                    if (item.permission && !hasPermission(item.permission)) return null;
+
+                                    // System Only Check (Super Admin)
+                                    if (item.systemOnly) {
+                                        const isSuperAdmin = currentUser.id === 'admin' || currentUser.adminRoleId === 'role_super_admin';
+                                        if (!isSuperAdmin) return null;
+                                    }
+
                                     const isActive = activeTab === item.id;
                                     const Icon = item.icon;
                                     return (
@@ -578,14 +663,16 @@ const AdminDashboard = () => {
                                             const diffMins = Math.floor(diffMs / 60000);
                                             const diffHours = Math.floor(diffMins / 60);
 
-                                            const isOverdue = orderMonitorTab === 'at_shelter' && diffHours >= 1;
+                                            const isLate = order.is_late_delivery;
+                                            const isOverdue = (orderMonitorTab === 'at_shelter' && diffHours >= 1) || isLate;
 
                                             return (
                                                 <tr key={order.id} style={{ borderBottom: '1px solid var(--color-border)', background: isOverdue ? 'rgba(255, 0, 0, 0.1)' : 'transparent' }}>
                                                     <td style={{ padding: '15px' }}>#{order.id.slice(-4)}</td>
                                                     <td style={{ padding: '15px' }}>
                                                         {diffHours > 0 ? `${diffHours}h ${diffMins % 60}m` : `${diffMins}m`} ago
-                                                        {isOverdue && <span style={{ marginLeft: '5px', color: 'red', fontWeight: 'bold', fontSize: '0.8rem' }}>⚠️ Overdue</span>}
+                                                        {isOverdue && !isLate && <span style={{ marginLeft: '5px', color: 'red', fontWeight: 'bold', fontSize: '0.8rem' }}>⚠️ Overdue</span>}
+                                                        {isLate && <span style={{ marginLeft: '5px', color: 'red', fontWeight: 'bold', fontSize: '0.8rem' }}>⚠️ Late (+{order.minutes_late}m)</span>}
                                                     </td>
                                                     <td style={{ padding: '15px' }}>{merchant?.name || 'Unknown'}</td>
                                                     <td style={{ padding: '15px' }}>
@@ -844,14 +931,28 @@ const AdminDashboard = () => {
                                             required
                                             style={{ flex: 1, padding: '10px', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-main)', borderRadius: '8px' }}
                                         />
-                                        <select
-                                            value={newUserForm.role}
-                                            onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}
-                                            style={{ padding: '10px', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-main)', borderRadius: '8px' }}
-                                        >
-                                            <option value="admin">Admin</option>
-                                            <option value="finance">Finance</option>
-                                        </select>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                            <select
+                                                value={newUserForm.role}
+                                                onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                                                style={{ padding: '10px', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-main)', borderRadius: '8px' }}
+                                            >
+                                                <option value="admin">Admin</option>
+                                                <option value="finance">Finance</option>
+                                                <option value="merchant">Merchant</option>
+                                                <option value="customer">Customer</option>
+                                            </select>
+                                            {newUserForm.role === 'admin' && (
+                                                <select
+                                                    value={newUserForm.adminRoleId || ''}
+                                                    onChange={e => setNewUserForm({ ...newUserForm, adminRoleId: e.target.value })}
+                                                    style={{ padding: '10px', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-main)', borderRadius: '8px', fontSize: '0.9rem' }}
+                                                >
+                                                    <option value="">Select Admin Role</option>
+                                                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                </select>
+                                            )}
+                                        </div>
                                     </div>
                                     <input
                                         placeholder="Email"
@@ -908,7 +1009,14 @@ const AdminDashboard = () => {
                                             <button
                                                 onClick={() => {
                                                     setEditingUser(user);
-                                                    setEditUserForm({ name: user.name, email: user.email, password: user.password, dormId: user.dormId || '', roomId: user.roomId || '' });
+                                                    setEditUserForm({
+                                                        name: user.name,
+                                                        email: user.email,
+                                                        password: user.password,
+                                                        dormId: user.dormId || '',
+                                                        roomId: user.roomId || '',
+                                                        adminRoleId: user.adminRoleId || ''
+                                                    });
                                                     setShowEditUserModal(true);
                                                 }}
                                                 style={{ background: 'transparent', border: 'none', color: 'var(--color-electric-blue)', cursor: 'pointer' }}
@@ -980,6 +1088,19 @@ const AdminDashboard = () => {
                                             style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
                                         />
                                     </div>
+                                    {editingUser.role === 'admin' && (
+                                        <div>
+                                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Assigned Admin Role</label>
+                                            <select
+                                                value={editUserForm.adminRoleId || ''}
+                                                onChange={e => setEditUserForm({ ...editUserForm, adminRoleId: e.target.value })}
+                                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', background: 'white', color: 'black' }}
+                                            >
+                                                <option value="">Select Role</option>
+                                                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                     {editingUser.role === 'customer' && (
                                         <>
                                             <div>
@@ -1027,6 +1148,186 @@ const AdminDashboard = () => {
                                     <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Save Changes</button>
                                 </form>
                             )}
+                        </Modal>
+                    </section>
+                )}
+
+                {/* FAMILY MANAGER TAB */}
+                {activeTab === 'family' && (
+                    <section>
+                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Family Management</h2>
+
+                        <div className="glass-panel" style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                        <th style={{ padding: '15px' }}>Parent Name</th>
+                                        <th style={{ padding: '15px' }}>Email</th>
+                                        <th style={{ padding: '15px' }}>Phone</th>
+                                        <th style={{ padding: '15px' }}>Linked Children</th>
+                                        <th style={{ padding: '15px' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.filter(u => u.role === 'parent').map(parent => {
+                                        const children = getFamilyMembers(parent.id);
+                                        return (
+                                            <tr key={parent.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '15px', fontWeight: 'bold' }}>{parent.name}</td>
+                                                <td style={{ padding: '15px' }}>{parent.email}</td>
+                                                <td style={{ padding: '15px' }}>{parent.phone || '-'}</td>
+                                                <td style={{ padding: '15px' }}>
+                                                    <span style={{
+                                                        background: 'var(--color-primary)',
+                                                        color: 'black',
+                                                        padding: '2px 8px',
+                                                        borderRadius: '10px',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 'bold'
+                                                    }}>
+                                                        {children.length}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '15px' }}>
+                                                    <button
+                                                        onClick={() => handleViewFamily(parent)}
+                                                        className="btn-primary"
+                                                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                                    >
+                                                        Manage Family
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {users.filter(u => u.role === 'parent').length === 0 && (
+                                        <tr>
+                                            <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                                No parents found.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Family Details Modal */}
+                        <Modal
+                            isOpen={showFamilyModal}
+                            onClose={() => setShowFamilyModal(false)}
+                            title={`Family: ${viewingParent?.name || ''}`}
+                        >
+                            {viewingParent && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h3 style={{ fontSize: '1rem' }}>Linked Children</h3>
+                                        <button
+                                            onClick={() => setShowAddChildModal(true)}
+                                            style={{
+                                                background: 'var(--color-primary)',
+                                                color: 'black',
+                                                border: 'none',
+                                                padding: '6px 12px',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                fontWeight: 'bold',
+                                                fontSize: '0.8rem'
+                                            }}
+                                        >
+                                            <Plus size={14} /> Add Child
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        {getFamilyMembers(viewingParent.id).map(child => (
+                                            <div key={child.id} className="glass-panel" style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--color-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                        {child.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{child.name}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>NIS: {child.email.split('@')[0]}</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleUnlinkChild(child.id)}
+                                                    style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)', cursor: 'pointer' }}
+                                                    title="Unlink Child"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {getFamilyMembers(viewingParent.id).length === 0 && (
+                                            <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', fontSize: '0.9rem' }}>No children linked yet.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </Modal>
+
+                        {/* Add Child Modal */}
+                        <Modal
+                            isOpen={showAddChildModal}
+                            onClose={() => {
+                                setShowAddChildModal(false);
+                                setFoundChild(null);
+                                setChildSearchForm({ nis: '', dob: '' });
+                            }}
+                            title="Link New Child"
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                <form onSubmit={handleSearchChild} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Student NIS</label>
+                                        <input
+                                            value={childSearchForm.nis}
+                                            onChange={e => setChildSearchForm({ ...childSearchForm, nis: e.target.value })}
+                                            placeholder="Enter NIS"
+                                            required
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Date of Birth</label>
+                                        <input
+                                            type="date"
+                                            value={childSearchForm.dob}
+                                            onChange={e => setChildSearchForm({ ...childSearchForm, dob: e.target.value })}
+                                            required
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                        />
+                                    </div>
+                                    <button type="submit" className="btn-primary" style={{ marginTop: '5px' }}>Search Student</button>
+                                </form>
+
+                                {foundChild && (
+                                    <div className="glass-panel" style={{ padding: '15px', border: '1px solid var(--color-primary)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <CheckCircle size={20} color="var(--color-primary)" />
+                                            <span style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>Student Found!</span>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 'bold' }}>{foundChild.name}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{foundChild.email}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                                {(dorms && dorms.find(d => d.id === foundChild.dormId)?.name) || '-'} - {(rooms && rooms.find(r => r.id === foundChild.roomId)?.room_number) || '-'}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleAddChild}
+                                            className="btn-primary"
+                                            style={{ background: 'var(--color-primary)', color: 'black', fontWeight: 'bold' }}
+                                        >
+                                            Link to Parent
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </Modal>
                     </section>
                 )}
@@ -1354,14 +1655,11 @@ const AdminDashboard = () => {
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                                        Please select a dorm from the list to manage its rooms.
-                                    </div>
+                                    <p style={{ color: 'var(--color-text-muted)', padding: '20px', textAlign: 'center' }}>Select a dormitory to manage rooms.</p>
                                 )}
                             </div>
                         </div>
 
-                        {/* Modals */}
                         <Modal isOpen={showEditDormModal} onClose={() => setShowEditDormModal(false)} title="Edit Dorm">
                             <form onSubmit={(e) => {
                                 e.preventDefault();
@@ -1387,61 +1685,208 @@ const AdminDashboard = () => {
                     </section>
                 )}
 
-                {/* REPORTS TAB */}
-                {activeTab === 'reports' && (
+                {/* MERCHANT ISSUES TAB */}
+                {activeTab === 'issues' && (
                     <section>
-                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Monthly Merchant Revenue Report</h2>
+                        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Merchant Incident Reports</h2>
 
-                        <div className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <label style={{ fontWeight: 'bold' }}>Period:</label>
-                                    <select
-                                        value={reportMonth.split('-')[1]}
-                                        onChange={(e) => setReportMonth(`${reportMonth.split('-')[0]}-${e.target.value}`)}
-                                        style={{
-                                            padding: '8px',
-                                            borderRadius: '8px',
-                                            border: '1px solid var(--color-border)',
-                                            background: 'var(--color-bg-surface)',
-                                            color: 'var(--color-text-main)',
-                                            cursor: 'pointer'
+                        <div className="glass-panel" style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                        <th style={{ padding: '15px' }}>Date</th>
+                                        <th style={{ padding: '15px' }}>Type</th>
+                                        <th style={{ padding: '15px' }}>Merchant</th>
+                                        <th style={{ padding: '15px' }}>Customer</th>
+                                        <th style={{ padding: '15px' }}>Description</th>
+                                        <th style={{ padding: '15px' }}>Status</th>
+                                        <th style={{ padding: '15px' }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {incidentReports.length === 0 ? (
+                                        <tr><td colSpan="7" style={{ padding: '20px', textAlign: 'center' }}>No incident reports.</td></tr>
+                                    ) : (
+                                        incidentReports.map(report => {
+                                            const merchant = users.find(u => u.id === report.merchantId);
+                                            const customer = users.find(u => u.id === report.customerId);
+                                            return (
+                                                <tr key={report.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                    <td style={{ padding: '15px' }}>{new Date(report.timestamp).toLocaleDateString()}</td>
+                                                    <td style={{ padding: '15px' }}>
+                                                        <span style={{
+                                                            padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
+                                                            background: report.type === 'Late Delivery' ? 'rgba(255, 159, 67, 0.1)' : 'rgba(255, 71, 87, 0.1)',
+                                                            color: report.type === 'Late Delivery' ? 'var(--color-warning)' : 'var(--color-hot-pink)'
+                                                        }}>
+                                                            {report.type}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '15px' }}>{merchant?.name || 'Unknown'}</td>
+                                                    <td style={{ padding: '15px' }}>{customer?.name || 'Unknown'}</td>
+                                                    <td style={{ padding: '15px' }}>{report.description}</td>
+                                                    <td style={{ padding: '15px' }}>
+                                                        <span style={{
+                                                            fontWeight: 'bold',
+                                                            color: report.status === 'pending' ? 'var(--color-text-main)' :
+                                                                report.status === 'resolved' ? 'var(--color-neon-green)' : 'var(--color-hot-pink)'
+                                                        }}>
+                                                            {report.status.toUpperCase()}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '15px', display: 'flex', gap: '10px' }}>
+                                                        {report.status === 'pending' && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => updateIncidentReport(report.id, 'resolved')}
+                                                                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-neon-green)', background: 'transparent', color: 'var(--color-neon-green)', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                                >
+                                                                    Resolve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSuspendTarget(merchant);
+                                                                        setSuspendForm({ duration: '7', reason: `Escalated from Report #${report.id}: ${report.type}` });
+                                                                        setShowSuspendModal(true);
+                                                                        updateIncidentReport(report.id, 'escalated');
+                                                                    }}
+                                                                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-hot-pink)', background: 'var(--color-hot-pink)', color: 'white', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                                >
+                                                                    Escalate
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
+
+
+
+                {/* REPORTS TAB */}
+                {
+                    activeTab === 'reports' && (
+                        <section>
+                            <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Monthly Merchant Revenue Report</h2>
+
+                            <div className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <label style={{ fontWeight: 'bold' }}>Period:</label>
+                                        <select
+                                            value={reportMonth.split('-')[1]}
+                                            onChange={(e) => setReportMonth(`${reportMonth.split('-')[0]}-${e.target.value}`)}
+                                            style={{
+                                                padding: '8px',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--color-border)',
+                                                background: 'var(--color-bg-surface)',
+                                                color: 'var(--color-text-main)',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="01">January</option>
+                                            <option value="02">February</option>
+                                            <option value="03">March</option>
+                                            <option value="04">April</option>
+                                            <option value="05">May</option>
+                                            <option value="06">June</option>
+                                            <option value="07">July</option>
+                                            <option value="08">August</option>
+                                            <option value="09">September</option>
+                                            <option value="10">October</option>
+                                            <option value="11">November</option>
+                                            <option value="12">December</option>
+                                        </select>
+                                        <select
+                                            value={reportMonth.split('-')[0]}
+                                            onChange={(e) => setReportMonth(`${e.target.value}-${reportMonth.split('-')[1]}`)}
+                                            style={{
+                                                padding: '8px',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--color-border)',
+                                                background: 'var(--color-bg-surface)',
+                                                color: 'var(--color-text-main)',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                                                <option key={year} value={year}>{year}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            const reportData = users
+                                                .filter(u => u.role === 'merchant')
+                                                .map((merchant, index) => {
+                                                    const merchantOrders = orders.filter(o =>
+                                                        o.status === 'completed' &&
+                                                        o.timestamp.startsWith(reportMonth) &&
+                                                        o.items.some(i => i.merchantId === merchant.id)
+                                                    );
+
+                                                    let totalGross = 0;
+                                                    let totalFee = 0;
+                                                    let totalNet = 0;
+
+                                                    merchantOrders.forEach(order => {
+                                                        const merchantItems = order.items.filter(i => i.merchantId === merchant.id);
+                                                        merchantItems.forEach(item => {
+                                                            const itemBase = item.price * item.quantity;
+                                                            const itemFee = Math.floor(itemBase * 0.15);
+                                                            const itemGross = itemBase + itemFee;
+
+                                                            totalGross += itemGross;
+                                                            totalFee += itemFee;
+                                                            totalNet += itemBase;
+                                                        });
+                                                    });
+
+                                                    return {
+                                                        'No.': index + 1,
+                                                        'Merchant Name': merchant.name,
+                                                        'Total Completed Orders': merchantOrders.length,
+                                                        'Gross Revenue (Rp)': totalGross,
+                                                        'Platform Fee (Rp)': totalFee,
+                                                        'Net Payout (Rp)': totalNet
+                                                    };
+                                                });
+
+                                            const ws = XLSX.utils.json_to_sheet(reportData);
+                                            const wb = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(wb, ws, "Revenue Report");
+                                            XLSX.writeFile(wb, `Revenue_Report_${reportMonth}.xlsx`);
                                         }}
+                                        className="btn-primary"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
-                                        <option value="01">January</option>
-                                        <option value="02">February</option>
-                                        <option value="03">March</option>
-                                        <option value="04">April</option>
-                                        <option value="05">May</option>
-                                        <option value="06">June</option>
-                                        <option value="07">July</option>
-                                        <option value="08">August</option>
-                                        <option value="09">September</option>
-                                        <option value="10">October</option>
-                                        <option value="11">November</option>
-                                        <option value="12">December</option>
-                                    </select>
-                                    <select
-                                        value={reportMonth.split('-')[0]}
-                                        onChange={(e) => setReportMonth(`${e.target.value}-${reportMonth.split('-')[1]}`)}
-                                        style={{
-                                            padding: '8px',
-                                            borderRadius: '8px',
-                                            border: '1px solid var(--color-border)',
-                                            background: 'var(--color-bg-surface)',
-                                            color: 'var(--color-text-main)',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                                            <option key={year} value={year}>{year}</option>
-                                        ))}
-                                    </select>
+                                        <Download size={18} /> Export to Excel
+                                    </button>
                                 </div>
+                            </div>
 
-                                <button
-                                    onClick={() => {
-                                        const reportData = users
+                            <div className="glass-panel" style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                            <th style={{ padding: '15px' }}>No.</th>
+                                            <th style={{ padding: '15px' }}>Merchant Name</th>
+                                            <th style={{ padding: '15px', textAlign: 'center' }}>Completed Orders</th>
+                                            <th style={{ padding: '15px', textAlign: 'right' }}>Gross Revenue</th>
+                                            <th style={{ padding: '15px', textAlign: 'right' }}>Platform Fee (15%)</th>
+                                            <th style={{ padding: '15px', textAlign: 'right' }}>Net Payout</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {users
                                             .filter(u => u.role === 'merchant')
                                             .map((merchant, index) => {
                                                 const merchantOrders = orders.filter(o =>
@@ -1457,7 +1902,7 @@ const AdminDashboard = () => {
                                                 merchantOrders.forEach(order => {
                                                     const merchantItems = order.items.filter(i => i.merchantId === merchant.id);
                                                     merchantItems.forEach(item => {
-                                                        const itemBase = item.price * item.quantity;
+                                                        const itemBase = item.price * item.quantity; // item.price is base price
                                                         const itemFee = Math.floor(itemBase * 0.15);
                                                         const itemGross = itemBase + itemFee;
 
@@ -1467,128 +1912,136 @@ const AdminDashboard = () => {
                                                     });
                                                 });
 
-                                                return {
-                                                    'No.': index + 1,
-                                                    'Merchant Name': merchant.name,
-                                                    'Total Completed Orders': merchantOrders.length,
-                                                    'Gross Revenue (Rp)': totalGross,
-                                                    'Platform Fee (Rp)': totalFee,
-                                                    'Net Payout (Rp)': totalNet
-                                                };
-                                            });
-
-                                        const ws = XLSX.utils.json_to_sheet(reportData);
-                                        const wb = XLSX.utils.book_new();
-                                        XLSX.utils.book_append_sheet(wb, ws, "Revenue Report");
-                                        XLSX.writeFile(wb, `Revenue_Report_${reportMonth}.xlsx`);
-                                    }}
-                                    className="btn-primary"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                >
-                                    <Download size={18} /> Export to Excel
-                                </button>
+                                                return (
+                                                    <tr key={merchant.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <td style={{ padding: '15px' }}>{index + 1}</td>
+                                                        <td style={{ padding: '15px', fontWeight: '500' }}>{merchant.name}</td>
+                                                        <td style={{ padding: '15px', textAlign: 'center' }}>{merchantOrders.length}</td>
+                                                        <td style={{ padding: '15px', textAlign: 'right', color: 'var(--color-text-main)' }}>
+                                                            Rp {totalGross.toLocaleString()}
+                                                        </td>
+                                                        <td style={{ padding: '15px', textAlign: 'right', color: 'var(--color-neon-green)' }}>
+                                                            Rp {totalFee.toLocaleString()}
+                                                        </td>
+                                                        <td style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', color: 'var(--color-electric-blue)' }}>
+                                                            Rp {totalNet.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        {users.filter(u => u.role === 'merchant').length === 0 && (
+                                            <tr>
+                                                <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                                    No merchants found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
+                        </section>
+                    )}
+                {/* ROLES TAB */}
+                {activeTab === 'roles' && (
+                    <section>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
+                            <h2 style={{ fontSize: '1.2rem' }}>Roles & Permissions</h2>
+                            <button
+                                onClick={() => {
+                                    setEditingRole(null);
+                                    setRoleForm({ name: '', description: '', permissions: [] });
+                                    setShowRoleModal(true);
+                                }}
+                                className="btn-primary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                <Plus size={18} /> Add Role
+                            </button>
                         </div>
-
                         <div className="glass-panel" style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
-                                        <th style={{ padding: '15px' }}>No.</th>
-                                        <th style={{ padding: '15px' }}>Merchant Name</th>
-                                        <th style={{ padding: '15px', textAlign: 'center' }}>Completed Orders</th>
-                                        <th style={{ padding: '15px', textAlign: 'right' }}>Gross Revenue</th>
-                                        <th style={{ padding: '15px', textAlign: 'right' }}>Platform Fee (15%)</th>
-                                        <th style={{ padding: '15px', textAlign: 'right' }}>Net Payout</th>
+                                        <th style={{ padding: '15px' }}>Role Name</th>
+                                        <th style={{ padding: '15px' }}>Description</th>
+                                        <th style={{ padding: '15px' }}>Permissions</th>
+                                        <th style={{ padding: '15px', textAlign: 'right' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users
-                                        .filter(u => u.role === 'merchant')
-                                        .map((merchant, index) => {
-                                            const merchantOrders = orders.filter(o =>
-                                                o.status === 'completed' &&
-                                                o.timestamp.startsWith(reportMonth) &&
-                                                o.items.some(i => i.merchantId === merchant.id)
-                                            );
-
-                                            let totalGross = 0;
-                                            let totalFee = 0;
-                                            let totalNet = 0;
-
-                                            merchantOrders.forEach(order => {
-                                                const merchantItems = order.items.filter(i => i.merchantId === merchant.id);
-                                                merchantItems.forEach(item => {
-                                                    const itemBase = item.price * item.quantity; // item.price is base price
-                                                    const itemFee = Math.floor(itemBase * 0.15);
-                                                    const itemGross = itemBase + itemFee;
-
-                                                    totalGross += itemGross;
-                                                    totalFee += itemFee;
-                                                    totalNet += itemBase;
-                                                });
-                                            });
-
-                                            return (
-                                                <tr key={merchant.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                    <td style={{ padding: '15px' }}>{index + 1}</td>
-                                                    <td style={{ padding: '15px', fontWeight: '500' }}>{merchant.name}</td>
-                                                    <td style={{ padding: '15px', textAlign: 'center' }}>{merchantOrders.length}</td>
-                                                    <td style={{ padding: '15px', textAlign: 'right', color: 'var(--color-text-main)' }}>
-                                                        Rp {totalGross.toLocaleString()}
-                                                    </td>
-                                                    <td style={{ padding: '15px', textAlign: 'right', color: 'var(--color-neon-green)' }}>
-                                                        Rp {totalFee.toLocaleString()}
-                                                    </td>
-                                                    <td style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', color: 'var(--color-electric-blue)' }}>
-                                                        Rp {totalNet.toLocaleString()}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    {users.filter(u => u.role === 'merchant').length === 0 && (
-                                        <tr>
-                                            <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                                                No merchants found.
+                                    {roles.map(role => (
+                                        <tr key={role.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                            <td style={{ padding: '15px', fontWeight: 'bold' }}>{role.name}</td>
+                                            <td style={{ padding: '15px' }}>{role.description}</td>
+                                            <td style={{ padding: '15px' }}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                                    {role.permissions.slice(0, 3).map(p => (
+                                                        <span key={p} style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                            {AVAILABLE_PERMISSIONS.find(ap => ap.slug === p)?.label || p}
+                                                        </span>
+                                                    ))}
+                                                    {role.permissions.length > 3 && <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>+{role.permissions.length - 3} more</span>}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '15px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingRole(role);
+                                                        setRoleForm({ ...role });
+                                                        setShowRoleModal(true);
+                                                    }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-main)' }}
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                {!role.isSystem && (
+                                                    <button
+                                                        onClick={() => showConfirm('Delete Role', 'Are you sure?', () => deleteRole(role.id))}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-hot-pink)' }}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
-                                    )}
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
-
-                        {/* Modals */}
-                        <Modal isOpen={showEditDormModal} onClose={() => setShowEditDormModal(false)} title="Edit Dorm">
-                            <form onSubmit={(e) => {
-                                e.preventDefault();
-                                updateDorm(editingDorm.id, editDormForm);
-                                setShowEditDormModal(false);
-                            }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <input value={editDormForm.name} onChange={e => setEditDormForm({ ...editDormForm, name: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input value={editDormForm.location_area} onChange={e => setEditDormForm({ ...editDormForm, location_area: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <button type="submit" className="btn-primary">Save</button>
-                            </form>
-                        </Modal>
-
-                        <Modal isOpen={showEditRoomModal} onClose={() => setShowEditRoomModal(false)} title="Edit Room">
-                            <form onSubmit={(e) => {
-                                e.preventDefault();
-                                updateRoom(editingRoom.id, editRoomForm);
-                                setShowEditRoomModal(false);
-                            }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <input value={editRoomForm.room_number} onChange={e => setEditRoomForm({ ...editRoomForm, room_number: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <button type="submit" className="btn-primary">Save</button>
-                            </form>
-                        </Modal>
                     </section>
                 )}
 
+                {/* Modals */}
+                <Modal isOpen={showEditDormModal} onClose={() => setShowEditDormModal(false)} title="Edit Dorm">
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        updateDorm(editingDorm.id, editDormForm);
+                        setShowEditDormModal(false);
+                    }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input value={editDormForm.name} onChange={e => setEditDormForm({ ...editDormForm, name: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
+                        <input value={editDormForm.location_area} onChange={e => setEditDormForm({ ...editDormForm, location_area: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
+                        <button type="submit" className="btn-primary">Save</button>
+                    </form>
+                </Modal>
+
+                <Modal isOpen={showEditRoomModal} onClose={() => setShowEditRoomModal(false)} title="Edit Room">
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        updateRoom(editingRoom.id, editRoomForm);
+                        setShowEditRoomModal(false);
+                    }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <input value={editRoomForm.room_number} onChange={e => setEditRoomForm({ ...editRoomForm, room_number: e.target.value })} style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }} />
+                        <button type="submit" className="btn-primary">Save</button>
+                    </form>
+                </Modal>
 
 
-            </main>
+
+
+            </main >
 
             {/* Fingerprint Verification Modal */}
-            <Modal
+            < Modal
                 isOpen={showFingerprintModal}
                 onClose={() => {
                     if (fingerprintStatus !== 'scanning') {
@@ -1650,6 +2103,17 @@ const AdminDashboard = () => {
                                     fingerprintStatus === 'success' ? "Identity confirmed." :
                                         "Please try again."}
                         </p>
+                        {fingerprintOrder && (
+                            <div style={{ marginTop: '15px', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                                <p style={{ fontSize: '0.9rem', marginBottom: '5px' }}>Verifying Student:</p>
+                                <p style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--color-primary)' }}>
+                                    {users.find(u => u.id === fingerprintOrder.customerId)?.name || 'Unknown'}
+                                </p>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '5px' }}>
+                                    PIN: {users.find(u => u.id === fingerprintOrder.customerId)?.id.slice(-6).toUpperCase() || '----'}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {fingerprintStatus === 'idle' && (
@@ -1671,7 +2135,7 @@ const AdminDashboard = () => {
                         </button>
                     )}
                 </div>
-            </Modal>
+            </Modal >
 
             <ConfirmationModal
                 isOpen={modal.isOpen}
@@ -1681,7 +2145,136 @@ const AdminDashboard = () => {
                 onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
                 isAlert={modal.isAlert}
             />
-        </div>
+            {/* Suspend Merchant Modal */}
+            <Modal
+                isOpen={showSuspendModal}
+                onClose={() => setShowSuspendModal(false)}
+                title="Suspend Merchant"
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ padding: '10px', background: 'rgba(255, 71, 87, 0.1)', color: 'var(--color-hot-pink)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem' }}>
+                        <AlertTriangle size={20} />
+                        <span>Warning: This will immediately close the merchant's shop.</span>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Duration</label>
+                        <select
+                            value={suspendForm.duration}
+                            onChange={(e) => setSuspendForm({ ...suspendForm, duration: e.target.value })}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                        >
+                            <option value="7">1 Week (7 Days)</option>
+                            <option value="21">3 Weeks (21 Days)</option>
+                            <option value="30">1 Month (30 Days)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', fontWeight: 'bold' }}>Reason</label>
+                        <textarea
+                            value={suspendForm.reason}
+                            onChange={(e) => setSuspendForm({ ...suspendForm, reason: e.target.value })}
+                            placeholder="e.g. Repeated late deliveries"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)', minHeight: '80px' }}
+                        />
+                    </div>
+
+                    <button
+                        onClick={handleSuspendSubmit}
+                        className="btn-primary"
+                        style={{ width: '100%', background: 'var(--color-hot-pink)', color: 'white', border: 'none', padding: '10px' }}
+                    >
+                        Suspend Merchant
+                    </button>
+                </div>
+            </Modal>
+            {/* Role Management Modal */}
+            <Modal
+                isOpen={showRoleModal}
+                onClose={() => setShowRoleModal(false)}
+                title={editingRole ? "Edit Role" : "Create New Role"}
+            >
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingRole) {
+                        updateRole(editingRole.id, roleForm);
+                        showAlert('Success', 'Role updated successfully');
+                    } else {
+                        addRole(roleForm);
+                        showAlert('Success', 'Role created successfully');
+                    }
+                    setShowRoleModal(false);
+                }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Role Name</label>
+                            <input
+                                value={roleForm.name}
+                                onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
+                            <input
+                                value={roleForm.description}
+                                onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Permissions</label>
+                            <div className="thin-scrollbar" style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px' }}>
+                                {['User Management', 'Finance Operations', 'Merchant Ops', 'Order Monitoring'].map(group => (
+                                    <div key={group} style={{ marginBottom: '15px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', background: 'rgba(255,255,255,0.05)', padding: '5px', borderRadius: '4px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={AVAILABLE_PERMISSIONS.filter(p => p.group === group).every(p => roleForm.permissions.includes(p.slug))}
+                                                onChange={(e) => {
+                                                    const groupSlugs = AVAILABLE_PERMISSIONS.filter(p => p.group === group).map(p => p.slug);
+                                                    if (e.target.checked) {
+                                                        // Add all
+                                                        setRoleForm(prev => ({ ...prev, permissions: [...new Set([...prev.permissions, ...groupSlugs])] }));
+                                                    } else {
+                                                        // Remove all
+                                                        setRoleForm(prev => ({ ...prev, permissions: prev.permissions.filter(p => !groupSlugs.includes(p)) }));
+                                                    }
+                                                }}
+                                                style={{ cursor: 'pointer' }} />
+                                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--color-primary)' }}>{group.toUpperCase()}</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingLeft: '10px' }}>
+                                            {AVAILABLE_PERMISSIONS.filter(p => p.group === group).map(perm => (
+                                                <label key={perm.slug} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={roleForm.permissions.includes(perm.slug)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setRoleForm(prev => ({ ...prev, permissions: [...prev.permissions, perm.slug] }));
+                                                            } else {
+                                                                setRoleForm(prev => ({ ...prev, permissions: prev.permissions.filter(p => p !== perm.slug) }));
+                                                            }
+                                                        }}
+                                                    />
+                                                    {perm.label}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Save Configuration</button>
+                    </div>
+                </form>
+            </Modal>
+        </div >
     );
 };
 
