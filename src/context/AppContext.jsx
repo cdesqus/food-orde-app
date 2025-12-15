@@ -105,12 +105,12 @@ export const AppProvider = ({ children }) => {
         // Parent
         { id: 'p1', name: 'Parent User', role: 'parent', email: 'parent@food.com', password: '123', approved: true, phone: '08199999999' },
         // Finance
-        { id: 'fin1', name: 'Finance Officer', role: 'admin', email: 'finance@food.com', password: '123', approved: true, adminRoleId: 'role_finance' } // Changed role to admin but with finance role link
+        { id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true }
       ];
 
       // Fix for existing localStorage: Ensure Finance user exists
       if (!initialUsers.find(u => u.email === 'finance@food.com')) {
-        initialUsers.push({ id: 'fin1', name: 'Finance Officer', role: 'admin', email: 'finance@food.com', password: '123', approved: true, adminRoleId: 'role_finance' });
+        initialUsers.push({ id: 'fin1', name: 'Finance Officer', role: 'finance', email: 'finance@food.com', password: '123', approved: true });
       }
       if (!initialUsers.find(u => u.email === 'parent@food.com')) {
         initialUsers.push({ id: 'p1', name: 'Parent User', role: 'parent', email: 'parent@food.com', password: '123', approved: true, phone: '08199999999' });
@@ -338,6 +338,15 @@ export const AppProvider = ({ children }) => {
     // Strict Server-Side Check for Cutoff
     if (!isOrderingOpen) {
       return { success: false, message: 'Order hari ini sudah tutup. Silakan pesan besok pagi jam 08:00.' };
+    }
+
+    // Check if Merchant is Suspended
+    if (cartItems.length > 0) {
+      const merchantId = cartItems[0].merchantId;
+      const merchant = users.find(u => u.id === merchantId);
+      if (merchant && (merchant.status === 'SUSPENDED' || merchant.status === 'PERMANENT_BAN')) {
+        return { success: false, message: 'Merchant is currently suspended and cannot accept orders.' };
+      }
     }
 
     // Determine who the order is for (Receiver) and who is paying (Payer)

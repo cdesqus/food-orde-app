@@ -8,9 +8,14 @@ import { Search, MapPin, ChevronDown } from 'lucide-react';
 const Home = () => {
     const { currentUser, foods, users, getDisplayPrice, getFamilyMembers, orderingFor, setOrderingFor, serverTime } = useApp();
     const [searchTerm, setSearchTerm] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const navigate = useNavigate();
 
-    const activeFoods = foods.filter(f => f.active);
+    const activeFoods = foods.filter(f => {
+        if (!f.active) return false;
+        const merchant = users.find(u => u.id === f.merchantId);
+        return merchant && merchant.status !== 'SUSPENDED' && merchant.status !== 'PERMANENT_BAN';
+    });
 
     // Status Badge Logic
     const statusBadge = useMemo(() => {
@@ -81,62 +86,91 @@ const Home = () => {
 
                         {/* Parent Context Switcher */}
                         {currentUser.role === 'parent' && (
-                            <div className="dropdown-container" style={{ position: 'relative', marginTop: '5px', display: 'inline-block' }}>
-                                <button className="glass-panel" style={{
-                                    padding: '5px 12px',
-                                    borderRadius: '20px',
-                                    background: 'rgba(255,255,255,0.2)',
-                                    border: 'none',
-                                    color: 'white',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem'
-                                }}>
-                                    Ordering for: <strong>{orderingFor ? orderingFor.name : 'Me'}</strong>
-                                    <ChevronDown size={14} />
-                                </button>
-                                <div className="dropdown-content" style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    left: 0,
-                                    background: 'white',
-                                    color: 'black',
-                                    borderRadius: '10px',
-                                    padding: '5px',
-                                    minWidth: '150px',
-                                    boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                                    zIndex: 10,
-                                    display: 'none', // CSS hover needed or state
-                                    marginTop: '5px'
-                                }}>
-                                    <div
-                                        onClick={() => setOrderingFor(currentUser)}
-                                        style={{ padding: '8px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                        onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
-                                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                    >
-                                        Myself ({currentUser.name})
-                                    </div>
-                                    {familyMembers.map(member => (
-                                        <div
-                                            key={member.id}
-                                            onClick={() => setOrderingFor(member)}
-                                            style={{ padding: '8px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                            onMouseEnter={(e) => e.target.style.background = '#f3f4f6'}
-                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                            {member.name}
+                            <>
+                                <div className="dropdown-container" style={{ position: 'relative', marginTop: '5px', display: 'inline-block' }}>
+                                    <button
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="glass-panel"
+                                        style={{
+                                            padding: '5px 12px',
+                                            borderRadius: '20px',
+                                            background: 'rgba(255,255,255,0.2)',
+                                            border: 'none',
+                                            color: 'white',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            width: 'auto'
+                                        }}>
+                                        Ordering for: <strong>{orderingFor ? orderingFor.name : 'Me'}</strong>
+                                        <ChevronDown size={14} style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+
+                                    {isDropdownOpen && (
+                                        <div className="dropdown-content" style={{
+                                            position: 'absolute',
+                                            top: '120%',
+                                            left: 0,
+                                            background: 'white',
+                                            color: 'black',
+                                            borderRadius: '10px',
+                                            padding: '5px',
+                                            minWidth: '200px',
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            zIndex: 20,
+                                            animation: 'fadeIn 0.2s ease'
+                                        }}>
+                                            <div
+                                                onClick={() => {
+                                                    setOrderingFor(currentUser);
+                                                    setIsDropdownOpen(false);
+                                                }}
+                                                style={{ padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                                onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>ME</div>
+                                                Myself ({currentUser.name})
+                                            </div>
+
+                                            {familyMembers.length > 0 && <div style={{ height: '1px', background: '#e5e7eb', margin: '5px 0' }}></div>}
+
+                                            {familyMembers.map(member => (
+                                                <div
+                                                    key={member.id}
+                                                    onClick={() => {
+                                                        setOrderingFor(member);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    style={{ padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--color-secondary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>{member.name.charAt(0)}</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span>{member.name}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {familyMembers.length === 0 && (
+                                                <div style={{ padding: '10px', fontSize: '0.8rem', color: '#6b7280', textAlign: 'center' }}>
+                                                    No children linked yet.
+                                                </div>
+                                            )}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                                <style>{`
-                                    .dropdown-container:hover .dropdown-content {
-                                        display: block;
-                                    }
-                                `}</style>
-                            </div>
+                                {/* Full screen transparent overlay to close dropdown */}
+                                {isDropdownOpen && (
+                                    <div
+                                        style={{ position: 'fixed', inset: 0, zIndex: 10 }}
+                                        onClick={() => setIsDropdownOpen(false)}
+                                    />
+                                )}
+                            </>
                         )}
 
                         {currentUser.role !== 'parent' && <p style={{ opacity: 0.9 }}>Hungry for something new?</p>}

@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Trash2, Key, X, FileText, Download, Home, Building, ClipboardList, Menu, ChevronLeft, ChevronRight, Eye, Fingerprint, Info, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Users, CheckCircle, BarChart2, Plus, LogOut, TrendingUp, DollarSign, ShoppingBag, Activity, MapPin, Edit, Edit2, Trash2, Key, X, FileText, Download, Home, Building, ClipboardList, Menu, ChevronLeft, ChevronRight, Eye, Fingerprint, Info, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Modal from '../../components/Modal';
 
 const AdminDashboard = () => {
-    const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom, getFamilyMembers, linkFamily, unlinkFamily, incidentReports, updateIncidentReport, suspendMerchant, roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS } = useApp();
+    const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom, getFamilyMembers, linkFamily, unlinkFamily, incidentReports, updateIncidentReport, suspendMerchant, unsuspendMerchant, roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS } = useApp();
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'verification' | 'users' | 'locations' | 'dorms' | 'reports' | 'issues' | 'roles'
     const [showAddUser, setShowAddUser] = useState(false);
     const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', role: 'admin', adminRoleId: '' });
@@ -123,10 +123,10 @@ const AdminDashboard = () => {
         setShowFamilyModal(true);
     };
 
-    const handleUnlinkChild = (childId) => {
+    const handleUnlinkChild = (linkId) => {
         if (viewingParent) {
             showConfirm('Unlink Child', 'Are you sure you want to unlink this student?', () => {
-                unlinkFamily(viewingParent.id, childId);
+                unlinkFamily(linkId);
                 // Refresh the modal view is handled by reactivity, but we might need to force update or just rely on state
                 setModal(prev => ({ ...prev, isOpen: false }));
             });
@@ -260,6 +260,8 @@ const AdminDashboard = () => {
 
     // Sidebar State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [viewingEvidence, setViewingEvidence] = useState(null);
+    const [showEvidenceModal, setShowEvidenceModal] = useState(false);
 
     const menuItems = [
         {
@@ -1002,7 +1004,11 @@ const AdminDashboard = () => {
                                                 </p>
                                             )}
                                             <p style={{ fontSize: '0.8rem', color: user.approved ? 'var(--color-neon-green)' : 'var(--color-hot-pink)' }}>
-                                                Status: {user.approved ? 'Active' : 'Banned/Pending'}
+                                                Status: {
+                                                    (user.status === 'SUSPENDED') ? 'Suspended (Temporary)' :
+                                                        (user.status === 'PERMANENT_BAN') ? 'Banned (Permanent)' :
+                                                            (user.approved ? 'Active' : 'Pending/Banned')
+                                                }
                                             </p>
                                         </div>
                                         <div style={{ display: 'flex', gap: '10px' }}>
@@ -1024,20 +1030,43 @@ const AdminDashboard = () => {
                                             >
                                                 <Edit size={18} />
                                             </button>
-                                            <button
-                                                onClick={() => toggleUserStatus(user.id, !user.approved)}
-                                                style={{
-                                                    padding: '0.5rem 1rem',
-                                                    fontSize: '0.8rem',
-                                                    background: 'transparent',
-                                                    border: `1px solid ${user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)'}`,
-                                                    color: user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)',
-                                                    borderRadius: '20px',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                {user.approved ? 'Ban' : 'Approve'}
-                                            </button>
+                                            {(user.status === 'SUSPENDED' || user.status === 'PERMANENT_BAN') ? (
+                                                <button
+                                                    onClick={() => {
+                                                        showConfirm(
+                                                            'Reactivate Merchant',
+                                                            `Are you sure you want to unsuspending ${user.name}? They will be able to accept orders again.`,
+                                                            () => unsuspendMerchant(user.id)
+                                                        );
+                                                    }}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        fontSize: '0.8rem',
+                                                        background: 'transparent',
+                                                        border: '1px solid var(--color-neon-green)',
+                                                        color: 'var(--color-neon-green)',
+                                                        borderRadius: '20px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Reactivate
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => toggleUserStatus(user.id, !user.approved)}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        fontSize: '0.8rem',
+                                                        background: 'transparent',
+                                                        border: `1px solid ${user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)'}`,
+                                                        color: user.approved ? 'var(--color-hot-pink)' : 'var(--color-neon-green)',
+                                                        borderRadius: '20px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {user.approved ? 'Ban' : 'Approve'}
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => {
                                                     showConfirm(
@@ -1254,7 +1283,7 @@ const AdminDashboard = () => {
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={() => handleUnlinkChild(child.id)}
+                                                    onClick={() => handleUnlinkChild(child.linkId)}
                                                     style={{ background: 'transparent', border: 'none', color: 'var(--color-hot-pink)', cursor: 'pointer' }}
                                                     title="Unlink Child"
                                                 >
@@ -1698,6 +1727,7 @@ const AdminDashboard = () => {
                                         <th style={{ padding: '15px' }}>Type</th>
                                         <th style={{ padding: '15px' }}>Merchant</th>
                                         <th style={{ padding: '15px' }}>Customer</th>
+                                        <th style={{ padding: '15px' }}>Evidence</th>
                                         <th style={{ padding: '15px' }}>Description</th>
                                         <th style={{ padding: '15px' }}>Status</th>
                                         <th style={{ padding: '15px' }}>Action</th>
@@ -1724,6 +1754,30 @@ const AdminDashboard = () => {
                                                     </td>
                                                     <td style={{ padding: '15px' }}>{merchant?.name || 'Unknown'}</td>
                                                     <td style={{ padding: '15px' }}>{customer?.name || 'Unknown'}</td>
+                                                    <td style={{ padding: '15px' }}>
+                                                        {report.evidence ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setViewingEvidence(report.evidence);
+                                                                    setShowEvidenceModal(true);
+                                                                }}
+                                                                style={{
+                                                                    background: 'none',
+                                                                    border: 'none',
+                                                                    color: 'var(--color-electric-blue)',
+                                                                    cursor: 'pointer',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '5px',
+                                                                    textDecoration: 'underline'
+                                                                }}
+                                                            >
+                                                                <Eye size={16} /> View
+                                                            </button>
+                                                        ) : (
+                                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>None</span>
+                                                        )}
+                                                    </td>
                                                     <td style={{ padding: '15px' }}>{report.description}</td>
                                                     <td style={{ padding: '15px' }}>
                                                         <span style={{
@@ -2041,6 +2095,29 @@ const AdminDashboard = () => {
             </main >
 
             {/* Fingerprint Verification Modal */}
+            <Modal
+                isOpen={showEvidenceModal}
+                onClose={() => setShowEvidenceModal(false)}
+                title="Incident Evidence"
+            >
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px' }}>
+                    {viewingEvidence ? (
+                        <img
+                            src={viewingEvidence}
+                            alt="Evidence"
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '80vh',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            }}
+                        />
+                    ) : (
+                        <p>No evidence loaded.</p>
+                    )}
+                </div>
+            </Modal>
+
             < Modal
                 isOpen={showFingerprintModal}
                 onClose={() => {

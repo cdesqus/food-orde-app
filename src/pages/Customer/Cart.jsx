@@ -218,7 +218,7 @@ const Cart = () => {
                             <Wallet color="var(--color-primary)" />
                             <div style={{ textAlign: 'left' }}>
                                 <div style={{ fontWeight: 'bold' }}>My Wallet</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Balance: Rp {currentUser.balance.toLocaleString()}</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Balance: Rp {(currentUser.balance || 0).toLocaleString()}</div>
                             </div>
                         </button>
                         <button onClick={() => setPaymentMethod('qr')} style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: paymentMethod === 'qr' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: 'var(--color-bg-surface)', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>

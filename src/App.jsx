@@ -42,32 +42,32 @@ function AppRoutes() {
 
             {/* Customer Routes */}
             <Route path="/customer" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <CustomerHome />
                 </ProtectedRoute>
             } />
             <Route path="/customer/cart" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <Cart />
                 </ProtectedRoute>
             } />
             <Route path="/customer/merchant/:merchantId" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <MerchantPage />
                 </ProtectedRoute>
             } />
             <Route path="/customer/profile" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <CustomerProfile />
                 </ProtectedRoute>
             } />
             <Route path="/customer/order/:orderId" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <OrderDetail />
                 </ProtectedRoute>
             } />
             <Route path="/customer/active-orders" element={
-                <ProtectedRoute allowedRoles={['customer']}>
+                <ProtectedRoute allowedRoles={['customer', 'parent']}>
                     <ActiveOrders />
                 </ProtectedRoute>
             } />

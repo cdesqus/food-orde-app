@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LogOut, DollarSign, PieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText, Server, Download, Trash, Baby } from 'lucide-react';
+import { LogOut, DollarSign, PieChart as IconPieChart, List, CheckCircle, XCircle, Menu, ChevronLeft, ChevronRight, FileText, Server, Download, Trash, Baby } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 
 const FinanceDashboard = () => {
@@ -65,7 +66,7 @@ const FinanceDashboard = () => {
         });
 
         const totalGMV = monthlyOrders.reduce((sum, o) => sum + o.total, 0);
-        const variableFee = totalGMV * 0.023;
+        const variableFee = totalGMV * 0.025; // 2.5% Maint Fee
         const totalBill = variableFee;
 
         return {
@@ -96,7 +97,7 @@ const FinanceDashboard = () => {
     const menuItems = [
         {
             section: 'MAIN',
-            items: [{ id: 'dashboard', label: 'Dashboard', icon: PieChart }]
+            items: [{ id: 'dashboard', label: 'Dashboard', icon: IconPieChart }]
         },
         {
             section: 'FINANCIALS',
@@ -242,6 +243,109 @@ const FinanceDashboard = () => {
                                 <div className="glass-panel" style={{ padding: '20px' }}>
                                     <h3 style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Platform Profit (Fees)</h3>
                                     <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--color-neon-green)' }}>Rp {totalFees.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            {/* Charts Section */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                                {/* Revenue Trends Area Chart */}
+                                <div className="glass-panel" style={{ padding: '20px', height: '400px' }}>
+                                    <h3 style={{ marginBottom: '20px' }}>Revenue Trends (Simulated)</h3>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart
+                                            data={[
+                                                { name: 'Jan', revenue: 4000, profit: 2400 },
+                                                { name: 'Feb', revenue: 3000, profit: 1398 },
+                                                { name: 'Mar', revenue: 2000, profit: 9800 },
+                                                { name: 'Apr', revenue: 2780, profit: 3908 },
+                                                { name: 'May', revenue: 1890, profit: 4800 },
+                                                { name: 'Jun', revenue: 2390, profit: 3800 },
+                                                { name: 'Jul', revenue: 3490, profit: 4300 },
+                                            ]}
+                                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="name" stroke="#8884d8" />
+                                            <YAxis stroke="#8884d8" />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151' }}
+                                                itemStyle={{ color: '#e5e7eb' }}
+                                            />
+                                            <Area type="monotone" dataKey="revenue" stackId="1" stroke="#8884d8" fill="#8884d8" fillOpacity={0.5} />
+                                            <Area type="monotone" dataKey="profit" stackId="1" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.5} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Revenue vs Profit Bar Chart */}
+                                <div className="glass-panel" style={{ padding: '20px', height: '400px' }}>
+                                    <h3 style={{ marginBottom: '20px' }}>Revenue vs Profit</h3>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={[
+                                                { name: 'Jan', revenue: 4000, profit: 2400 },
+                                                { name: 'Feb', revenue: 3000, profit: 1398 },
+                                                { name: 'Mar', revenue: 2000, profit: 9800 },
+                                                { name: 'Apr', revenue: 2780, profit: 3908 },
+                                                { name: 'May', revenue: 1890, profit: 4800 },
+                                                { name: 'Jun', revenue: 2390, profit: 3800 },
+                                                { name: 'Jul', revenue: 3490, profit: 4300 },
+                                            ]}
+                                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="name" stroke="#8884d8" />
+                                            <YAxis stroke="#8884d8" />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151' }}
+                                                itemStyle={{ color: '#e5e7eb' }}
+                                            />
+                                            <Legend />
+                                            <Bar dataKey="revenue" fill="#8884d8" />
+                                            <Bar dataKey="profit" fill="#82ca9d" />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Expense Breakdown Pie Chart */}
+                                <div className="glass-panel" style={{ padding: '20px', height: '400px' }}>
+                                    <h3 style={{ marginBottom: '20px' }}>Revenue Distribution</h3>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: 'Merchant Payout', value: totalBase },
+                                                    { name: 'Platform Fees', value: totalFees },
+                                                ]}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                fill="#8884d8"
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                                                    const RADIAN = Math.PI / 180;
+                                                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                                    return (
+                                                        <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                                                            {`${(percent * 100).toFixed(0)}%`}
+                                                        </text>
+                                                    );
+                                                }}
+                                            >
+                                                <Cell key="cell-0" fill="var(--color-electric-blue)" />
+                                                <Cell key="cell-1" fill="var(--color-neon-green)" />
+                                            </Pie>
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151' }}
+                                                itemStyle={{ color: '#e5e7eb' }}
+                                            />
+                                            <Legend />
+                                        </PieChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
                         </div>
@@ -444,7 +548,7 @@ const FinanceDashboard = () => {
                                         <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{vendorBillData.orderCount} Orders</div>
                                     </div>
                                     <div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Variable Fee (2.3%)</div>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Variable Fee (2.5%)</div>
                                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-electric-blue)' }}>Rp {vendorBillData.variableFee.toLocaleString()}</div>
                                     </div>
                                     <div style={{ borderLeft: '2px solid var(--color-border)', paddingLeft: '15px' }}>
@@ -477,7 +581,7 @@ const FinanceDashboard = () => {
                                                 <th style={{ padding: '10px' }}>Invoice ID</th>
                                                 <th style={{ padding: '10px' }}>Period</th>
                                                 <th style={{ padding: '10px' }}>Total GMV</th>
-                                                <th style={{ padding: '10px' }}>Maint. Fee (2.3%)</th>
+                                                <th style={{ padding: '10px' }}>Maint. Fee (2.5%)</th>
                                                 <th style={{ padding: '10px' }}>Total Payout</th>
                                                 <th style={{ padding: '10px' }}>Status</th>
                                                 <th style={{ padding: '10px' }}>Action</th>

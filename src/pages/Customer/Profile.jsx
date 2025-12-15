@@ -93,7 +93,7 @@ const Profile = () => {
                         <Wallet color="var(--color-neon-green)" /> Balance
                     </h3>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-neon-green)', marginBottom: '1rem' }}>
-                        Rp {currentUser?.balance.toLocaleString()}
+                        Rp {(currentUser?.balance || 0).toLocaleString()}
                     </div>
                     <form onSubmit={handleTopUp} style={{ display: 'flex', gap: '0.5rem' }}>
                         <input

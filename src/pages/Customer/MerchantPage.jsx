@@ -70,6 +70,22 @@ const MerchantPage = () => {
 
     if (!merchant) return <div style={{ padding: '20px' }}>Merchant not found</div>;
 
+    if (merchant.status === 'SUSPENDED' || merchant.status === 'PERMANENT_BAN') {
+        return (
+            <div style={{ padding: '20px', textAlign: 'center', marginTop: '50px' }}>
+                <h2 style={{ color: 'var(--color-hot-pink)' }}>Merchant Suspended</h2>
+                <p>This merchant is currently suspended and cannot accept orders.</p>
+                <button
+                    onClick={() => navigate('/customer/home')}
+                    className="btn-primary"
+                    style={{ marginTop: '20px' }}
+                >
+                    Back to Home
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div style={{ paddingBottom: '100px' }}>
             {/* Banner */}

@@ -2,14 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import CustomerLayout from '../../layouts/CustomerLayout';
-import { ArrowLeft, Send, ClipboardList, ChefHat, MapPin, CheckCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Send, ClipboardList, ChefHat, MapPin, CheckCircle, Lock, AlertTriangle } from 'lucide-react';
+import Modal from '../../components/Modal';
 
 const OrderDetail = () => {
     const { orderId } = useParams();
     const navigate = useNavigate();
-    const { orders, messages, sendMessage, currentUser, shelters, users, showAlert, updateOrder } = useApp();
+    const { orders, messages, sendMessage, currentUser, shelters, users, showAlert, updateOrder, reportIncident } = useApp();
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportForm, setReportForm] = useState({ type: 'Bad Quality', description: '', evidence: '' });
 
     const order = orders.find(o => o.id === orderId);
     const merchant = users.find(u => u.id === order?.items[0]?.merchantId);
@@ -265,7 +268,97 @@ const OrderDetail = () => {
                     </div>
                 </div>
             </div>
-        </CustomerLayout>
+            {/* Report Button */}
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                <button
+                    onClick={() => setShowReportModal(true)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto', textDecoration: 'underline' }}
+                >
+                    <AlertTriangle size={16} /> Report an issue with this order
+                </button>
+            </div>
+
+
+            {/* Report Modal */}
+            <Modal
+                isOpen={showReportModal}
+                onClose={() => setShowReportModal(false)}
+                title="Report Incident"
+            >
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    reportIncident(order.id, order.items[0].merchantId, reportForm.type, reportForm.description, reportForm.evidence);
+                    showAlert('Report Submitted', 'We have received your report and the admin will review it shortly.');
+                    setShowReportModal(false);
+                    setReportForm({ type: 'Bad Quality', description: '', evidence: '' });
+                }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Issue Type</label>
+                            <select
+                                value={reportForm.type}
+                                onChange={e => setReportForm({ ...reportForm, type: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                            >
+                                <option value="Wrong Food">Wrong Food / Salah Makanan</option>
+                                <option value="Bad Quality">Bad Quality / Makanan Basi</option>
+                                <option value="Late Delivery">Late Delivery / Terlambat</option>
+                                <option value="Rude Behavior">Rude Behavior / Kurang Sopan</option>
+                                <option value="Other">Other / Lainnya</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
+                            <textarea
+                                value={reportForm.description}
+                                onChange={e => setReportForm({ ...reportForm, description: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)', minHeight: '80px' }}
+                                placeholder="Please explain what happened..."
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>Evidence (Take Picture)</label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={e => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setReportForm({ ...reportForm, evidence: reader.result });
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-surface)', color: 'var(--color-text-main)' }}
+                                />
+                                {reportForm.evidence && (
+                                    <div style={{ position: 'relative', width: 'fit-content' }}>
+                                        <img src={reportForm.evidence} alt="Evidence" style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '8px', border: '1px solid var(--color-border)' }} />
+                                        <button
+                                            type="button"
+                                            onClick={() => setReportForm({ ...reportForm, evidence: '' })}
+                                            style={{
+                                                position: 'absolute', top: '-10px', right: '-10px',
+                                                background: 'var(--color-hot-pink)', color: 'white', border: 'none', borderRadius: '50%',
+                                                width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                                            }}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>Submit Report</button>
+                    </div>
+                </form>
+            </Modal>
+        </CustomerLayout >
     );
 };
 
