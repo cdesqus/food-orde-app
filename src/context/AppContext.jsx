@@ -26,6 +26,15 @@ export const AppProvider = ({ children }) => {
     { slug: 'order.monitor.laundry', label: 'Monitor Laundry Orders', group: 'Order Monitoring' }
   ];
 
+  /* ----------------------------------------------------------------
+   *  AUTH & USERS (Real Backend Integration)
+   * ---------------------------------------------------------------- */
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
+
   const [roles, setRoles] = useState(() => {
     try {
       const saved = localStorage.getItem('roles');
@@ -194,13 +203,13 @@ export const AppProvider = ({ children }) => {
 
       // Listen for updates
       newSocket.on('order:new', (newOrder) => {
-        toast.show(`New Order Received! #${newOrder.orderId}`, 'success');
+        toast.addToast(`New Order Received! #${newOrder.orderId}`, 'success');
         // Refresh orders to get full details
         OrderService.getMyOrders().then(setOrders);
       });
 
       newSocket.on('order:status_update', ({ orderId, status }) => {
-        toast.show(`Order #${orderId} updated to ${status}`, 'info');
+        toast.addToast(`Order #${orderId} updated to ${status}`, 'info');
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
       });
 
@@ -255,11 +264,7 @@ export const AppProvider = ({ children }) => {
   /* ----------------------------------------------------------------
    *  AUTH & USERS (Real Backend Integration)
    * ---------------------------------------------------------------- */
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('token'));
+
 
   // Keep users state for Admin list view (eventually fetch from API)
   // For now, we rely on what we have or empty
