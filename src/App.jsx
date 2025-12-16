@@ -15,6 +15,7 @@ import ActiveOrders from './pages/Customer/ActiveOrders';
 import MerchantDashboard from './pages/Merchant/MerchantDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import FinanceDashboard from './pages/Admin/FinanceDashboard';
+import GlobalModalHandler from './components/GlobalModalHandler';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { currentUser } = useApp();
@@ -107,6 +108,7 @@ function App() {
                 <Router>
                     <AppRoutes />
                 </Router>
+                <GlobalModalHandler />
             </AppProvider>
         </ToastProvider>
     );

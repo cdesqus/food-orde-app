@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import ConfirmationModal from '../components/ConfirmationModal';
+// import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from './ToastContext';
 import { AuthService } from '../api/authService';
 import { OrderService } from '../api/orderService';
@@ -831,18 +831,16 @@ export const AppProvider = ({ children }) => {
       addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
       vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice,
       linkFamily, unlinkFamily, getFamilyMembers,
-      showAlert, showConfirm, getDisplayPrice,
+
+      // Global Modal Exports
+      modal,
+      closeModal: () => setModal(prev => ({ ...prev, isOpen: false })),
+      showAlert, showConfirm,
+
+      getDisplayPrice,
       isOrderingOpen, orderingPhase, timeRemaining, serverTime
     }}>
       {children}
-      <ConfirmationModal
-        isOpen={modal.isOpen}
-        title={modal.title}
-        message={modal.message}
-        onConfirm={modal.onConfirm}
-        onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
-        isAlert={modal.isAlert}
-      />
     </AppContext.Provider>
   );
 };
