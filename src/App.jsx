@@ -102,13 +102,13 @@ function AppRoutes() {
 
 function App() {
     return (
-        <AppProvider>
-            <ToastProvider>
+        <ToastProvider>
+            <AppProvider>
                 <Router>
                     <AppRoutes />
                 </Router>
-            </ToastProvider>
-        </AppProvider>
+            </AppProvider>
+        </ToastProvider>
     );
 }
 
