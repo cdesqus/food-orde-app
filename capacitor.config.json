@@ -1,0 +1,11 @@
+{
+  "appId": "com.eatz.app",
+  "appName": "EAT.Z",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": true,
+      "statsUrl": ""
+    }
+  }
+}

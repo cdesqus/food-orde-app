@@ -5,6 +5,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import * as XLSX from 'xlsx';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Modal from '../../components/Modal';
+import { NativeBiometric } from '@capacitor-community/native-biometric';
 
 const AdminDashboard = () => {
     const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom, getFamilyMembers, linkFamily, unlinkFamily, incidentReports, updateIncidentReport, suspendMerchant, unsuspendMerchant, roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS } = useApp();
@@ -93,23 +94,46 @@ const AdminDashboard = () => {
     const [fingerprintStatus, setFingerprintStatus] = useState('idle'); // 'idle', 'scanning', 'success', 'error'
     const [fingerprintOrder, setFingerprintOrder] = useState(null);
 
-    const handleFingerprintScan = () => {
-        if (fingerprintStatus !== 'idle') return;
+    const handleFingerprintScan = async () => {
+        if (fingerprintStatus === 'scanning') return;
         setFingerprintStatus('scanning');
-        // Simulate scanning delay
-        setTimeout(() => {
-            setFingerprintStatus('success');
-            // Simulate verification success and update
-            setTimeout(() => {
+
+        try {
+            const result = await NativeBiometric.verifyIdentity({
+                reason: "Identify Student for Pickup",
+                title: "Scan Fingerprint",
+                subtitle: "Place finger on sensor",
+                description: "Touch the sensor to verify identity."
+            });
+
+            if (result.success) {
+                setFingerprintStatus('success');
                 if (fingerprintOrder) {
                     updateOrder(fingerprintOrder.id, 'completed');
                     setShowFingerprintModal(false);
                     setFingerprintStatus('idle');
                     setFingerprintOrder(null);
-                    showAlert('Verified', 'Student verified and order completed.');
+                    showAlert('Verified', 'Identity confirmed. Order Completed.');
                 }
-            }, 1000);
-        }, 2000);
+            } else {
+                setFingerprintStatus('error');
+                showAlert('Error', 'Biometric verification failed.');
+            }
+        } catch (error) {
+            console.error("Biometric Error:", error);
+            setFingerprintStatus('error');
+            // Fallback for Web/Dev
+            if (error.message && error.message.includes('not implemented')) {
+                showAlert('Dev Mode', 'Biometrics not available in browser. simulating success...');
+                setTimeout(() => {
+                    setFingerprintStatus('success');
+                    if (fingerprintOrder) updateOrder(fingerprintOrder.id, 'completed');
+                    setShowFingerprintModal(false);
+                }, 1000);
+            } else {
+                showAlert('Scan Failed', 'Could not verify identity. try PIN instead.');
+            }
+        }
     };
 
     // Role Management State
