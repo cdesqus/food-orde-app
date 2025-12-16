@@ -5,7 +5,8 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import * as XLSX from 'xlsx';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Modal from '../../components/Modal';
-import { NativeBiometric } from '@capacitor-community/native-biometric';
+// import { NativeBiometric } from '@capacitor-community/native-biometric';
+const NativeBiometric = { verifyIdentity: async () => { throw new Error('not implemented'); } };
 
 const AdminDashboard = () => {
     const { currentUser, logout, users, toggleUserStatus, createUser, updateUser, deleteUser, orders, updateOrder, shelters, addShelter, updateShelter, deleteShelter, dorms, rooms, addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom, getFamilyMembers, linkFamily, unlinkFamily, incidentReports, updateIncidentReport, suspendMerchant, unsuspendMerchant, roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS } = useApp();

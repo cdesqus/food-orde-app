@@ -168,7 +168,7 @@ export const AppProvider = ({ children }) => {
     try {
       const saved = localStorage.getItem('orders');
       return saved ? JSON.parse(saved) : [];
-    } catch {
+    } catch (e) {
       return [];
     }
   });
