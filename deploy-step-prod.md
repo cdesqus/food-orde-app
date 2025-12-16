@@ -89,8 +89,9 @@ The frontend is served as static files via Nginx.
 3.  **Run the Container**:
     Start the Nginx container, mapping port 80 inside to port 8080 (or 80) on your host.
     ```bash
-    docker run -d -p 8080:80 --name eat-z-frontend food-order-app
+    docker run -d -p 8080:80 --add-host=host.docker.internal:host-gateway --name eat-z-frontend food-order-app
     ```
+    *Note: The `--add-host` flag is required on Linux to allow Nginx to connect to the backend running on the host.*
 
 4.  **Verify**:
     Access the web app at `http://your-server-ip:8080` (or `http://food.kaumtech.com` if reverse proxy is configured).
