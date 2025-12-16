@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Frontend Service (Static Files + Nginx Proxy)
+  frontend:
+    build: .
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: always
+
+  # Backend API Service
+  api:
+    build: ./backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/food_order
+      - REDIS_URL=redis://cache:6379
+      # Add other secrets here or use env_file
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+
+  # Database Service
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: food_order
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      # Persist data in the specific local folder to keep existing user data
+      - ./backend/pg_data:/var/lib/postgresql/data
+
+  # Cache Service
+  cache:
+    image: redis:7.4-alpine
+    restart: always

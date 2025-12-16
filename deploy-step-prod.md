@@ -32,69 +32,35 @@ If you have a fresh VPS, run these commands to install Docker:
     ```
     *Note: Modern Docker includes Compose as `docker compose` (v2).*
 
-## 2. Backend Deployment (Docker Compose)
+## 2. Full Stack Deployment (Recommended)
 
-The backend and database run together using Docker Compose.
+We now use a single `docker-compose.yml` in the root directory to orchestrate Frontend, Backend, Database, and Cache. This ensures they are automatically connected on the same private network.
 
-1.  **Navigate to the backend directory**:
+1.  **Stop any existing containers**:
+    If you were running backend separately:
     ```bash
     cd backend
+    docker-compose down
+    cd ..
+    ```
+    If you were running frontend separately:
+    ```bash
+    docker rm -f eat-z-frontend
     ```
 
-2.  **Configure Environment**:
-    Create a `.env` file in the `backend/` directory (if not exists) and ensure your production values are set:
-    ```env
-    PORT=3000
-    NODE_ENV=production
-    DATABASE_URL=postgresql://postgres:password@db:5432/food_order
-    JWT_SECRET=your_secure_secret_here
-    # ... other secrets
-    ```
-    
-    > **Tip**: Generate a secure `JWT_SECRET` by running:
-    > ```bash
-    > openssl rand -base64 32
-    > ```
-    > Or if you don't have openssl:
-    > ```bash
-    > node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-    > ```
-
-3.  **Start Services**:
-    Run the following command to build and start the containers in detached mode:
+2.  **Pull and Build Everything**:
+    Run this in the project root (`food-order-app/`):
     ```bash
     docker-compose up -d --build
     ```
 
-4.  **Verify**:
-    *   API should be running on `http://localhost:3000` (or mapped port).
-    *   Portainer (if enabled) on `http://localhost:9000`.
+3.  **Verify**:
+    *   **Frontend**: `http://localhost:8080` (or your server IP)
+    *   **Backend API**: Internal interactions verified. 
+    *   **Data**: Your existing database in `backend/pg_data` is preserved and mounted.
 
-## 3. Frontend Deployment (Docker/Nginx)
-
-The frontend is served as static files via Nginx.
-
-1.  **Navigate to the project root**:
-    ```bash
-    cd ..
-    # You should be in food-order-app/
-    ```
-
-2.  **Build the Docker Image**:
-    Run this command in the root directory. This uses the multi-stage `Dockerfile`.
-    ```bash
-    docker build -t food-order-app .
-    ```
-
-3.  **Run the Container**:
-    Start the Nginx container, mapping port 80 inside to port 8080 (or 80) on your host.
-    ```bash
-    docker run -d -p 8080:80 --add-host=host.docker.internal:host-gateway --name eat-z-frontend food-order-app
-    ```
-    *Note: The `--add-host` flag is required on Linux to allow Nginx to connect to the backend running on the host.*
-
-4.  **Verify**:
-    Access the web app at `http://your-server-ip:8080` (or `http://food.kaumtech.com` if reverse proxy is configured).
+4.  **Troubleshooting**:
+    *   If you see "Bind for 0.0.0.0:5432 failed", it means your old Postgres container is still running. Ensure you ran `docker-compose down` in the `backend/` folder first.
 
 ## 4. Mobile Build (Local APK for Production)
 
