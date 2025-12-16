@@ -59,7 +59,17 @@ We now use a single `docker-compose.yml` in the root directory to orchestrate Fr
     *   **Backend API**: Internal interactions verified. 
     *   **Data**: Your existing database in `backend/pg_data` is preserved and mounted.
 
-4.  **Troubleshooting**:
+4.  **Initialize Data (Optional)**:
+    If this is a fresh install and you want sample accounts:
+    ```bash
+    docker-compose exec api node dist/seed.js
+    ```
+    This will reset the database and create:
+    *   **Admin**: `admin@food.com` / `123`
+    *   **Merchant**: `burger@food.com` / `123`
+    *   **Customer**: `john@food.com` / `123`
+
+5.  **Troubleshooting**:
     *   If you see "Bind for 0.0.0.0:5432 failed", it means your old Postgres container is still running. Ensure you ran `docker-compose down` in the `backend/` folder first.
 
 ## 4. Mobile Build (Local APK for Production)
