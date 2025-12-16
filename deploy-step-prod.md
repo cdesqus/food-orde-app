@@ -24,8 +24,18 @@ The backend and database run together using Docker Compose.
     PORT=3000
     NODE_ENV=production
     DATABASE_URL=postgresql://postgres:password@db:5432/food_order
+    JWT_SECRET=your_secure_secret_here
     # ... other secrets
     ```
+    
+    > **Tip**: Generate a secure `JWT_SECRET` by running:
+    > ```bash
+    > openssl rand -base64 32
+    > ```
+    > Or if you don't have openssl:
+    > ```bash
+    > node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+    > ```
 
 3.  **Start Services**:
     Run the following command to build and start the containers in detached mode:
