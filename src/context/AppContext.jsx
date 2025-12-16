@@ -356,9 +356,7 @@ export const AppProvider = ({ children }) => {
         return basePrice + Math.floor(basePrice * 0.15);
       };
 
-      const placeOrder = (cartItems, shelterId, notes, paymentMethod) => {
-        if (!currentUser) return { success: false, message: 'Not logged in' };
-
+      const placeOrder = async (cartItems, shelterId, notes, paymentMethod) => {
         // Strict Server-Side Check for Cutoff
         if (!isOrderingOpen) {
           return { success: false, message: 'Order hari ini sudah tutup. Silakan pesan besok pagi jam 08:00.' };
@@ -372,474 +370,473 @@ export const AppProvider = ({ children }) => {
             return { success: false, message: 'Merchant is currently suspended and cannot accept orders.' };
           }
         }
-        // Determine who the order is for (Receiver) and who is paying (Payer)
+
         const receiver = orderingFor || currentUser;
-        const payer = currentUser;
 
-        const placeOrder = async (cartItems, totalDisplayPrice, notes, orderingFor = 'self', shelterId) => {
-          try {
-            if (!currentUser) return { success: false, message: 'Must be logged in' };
-            if (cartItems.length === 0) return { success: false, message: 'Cart is empty' };
 
-            // Group by merchant (Backend expects 1 merchant per order usually, but let's assume Cart handled this or backend handles it.
-            // Actually backend createOrderSchema expects 'merchantId'. So we must ensure all items have same merchant.
+        try {
+          if (!currentUser) return { success: false, message: 'Must be logged in' };
+          if (cartItems.length === 0) return { success: false, message: 'Cart is empty' };
 
-            const merchantId = cartItems[0].merchantId;
-            const isMixed = cartItems.some(i => i.merchantId !== merchantId);
-            if (isMixed) return { success: false, message: 'Multiple merchants in one cart is not supported yet.' };
+          // Group by merchant (Backend expects 1 merchant per order usually, but let's assume Cart handled this or backend handles it.
+          // Actually backend createOrderSchema expects 'merchantId'. So we must ensure all items have same merchant.
 
-            // Map to backend schema
-            const payload = {
-              merchantId: cartItems[0].merchantId, // Using the string ID from mocked data (e.g. 'm1'), backend expects number? 
-              // WAIT: Backend User model IDs are Numbers (autoIncrement). 
-              // Mock data IDs are Strings ('m1', 'f1'). This is a Schema Mismatch!
-              // For Phase 4 integration to work, we relying on the Fact that we replaced Auth.
-              // If we use Real Auth, the Merchant ID will be a Number.
-              // So this code assumes we are using REAL food items from REAL merchants.
-              // But we are currently mixing Real Auth with Mock Foods?
-              // This is tricky. For now, we try to pass what we have.
-              items: cartItems.map(i => ({
-                foodId: i.id, // ID must be number if backend expects number
-                quantity: i.quantity
-              })),
-              deliveryLocation: shelterId || 'Main Lobby'
+          const merchantId = cartItems[0].merchantId;
+          const isMixed = cartItems.some(i => i.merchantId !== merchantId);
+          if (isMixed) return { success: false, message: 'Multiple merchants in one cart is not supported yet.' };
+
+          // Map to backend schema
+          const payload = {
+            merchantId: cartItems[0].merchantId, // Using the string ID from mocked data (e.g. 'm1'), backend expects number? 
+            // WAIT: Backend User model IDs are Numbers (autoIncrement). 
+            // Mock data IDs are Strings ('m1', 'f1'). This is a Schema Mismatch!
+            // For Phase 4 integration to work, we relying on the Fact that we replaced Auth.
+            // If we use Real Auth, the Merchant ID will be a Number.
+            // So this code assumes we are using REAL food items from REAL merchants.
+            // But we are currently mixing Real Auth with Mock Foods?
+            // This is tricky. For now, we try to pass what we have.
+            items: cartItems.map(i => ({
+              foodId: i.id, // ID must be number if backend expects number
+              quantity: i.quantity
+            })),
+            deliveryLocation: shelterId || 'Main Lobby'
+          };
+
+          // Since we haven't migrated FoodItems to DB yet, we can't really Place Order successfully 
+          // because Foreign Keys will fail (foodId not found in DB).
+          // We need to implement Food Loading from Backend too!
+
+          // Temporary: We will TRY to call the API.
+          const response = await OrderService.createOrder(payload);
+
+          // Optimistic update or wait for socket? 
+          // Socket 'order:new' might not fire back to sender if logic is 'notify merchant'.
+          // But we can fetch orders again.
+          const orders = await OrderService.getMyOrders();
+          setOrders(orders);
+
+          return { success: true, orderId: response.orderId };
+
+        } catch (error) {
+          console.error("Place Order Failed:", error);
+          return { success: false, message: error.response?.data?.message || 'Order failed' };
+        }
+      };
+
+      // Incident Reports State
+      const [incidentReports, setIncidentReports] = useState(() => {
+        try {
+          const saved = localStorage.getItem('incidentReports');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          console.error('Failed to parse incidentReports', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('incidentReports', JSON.stringify(incidentReports)); }, [incidentReports]);
+
+      const reportIncident = (orderId, merchantId, type, description, evidence) => {
+        const newReport = {
+          id: `rep-${Date.now()}`,
+          orderId,
+          merchantId,
+          customerId: currentUser?.id,
+          type, // 'Wrong Food', 'Bad Quality', 'Late Delivery', 'Rude Behavior'
+          description,
+          evidence, // URL or base64
+          status: 'pending', // 'pending', 'resolved', 'escalated'
+          timestamp: new Date().toISOString()
+        };
+        setIncidentReports([...incidentReports, newReport]);
+        return { success: true };
+      };
+
+      const updateIncidentReport = (id, status, adminNotes = '') => {
+        setIncidentReports(incidentReports.map(rep =>
+          rep.id === id ? { ...rep, status, adminNotes } : rep
+        ));
+      };
+
+
+      // Merchant Suspension Logic
+      const suspendMerchant = (merchantId, durationDays, reason) => {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + durationDays);
+
+        setUsers(prevUsers => prevUsers.map(u => {
+          if (u.id === merchantId) {
+            return {
+              ...u,
+              status: 'SUSPENDED', // 'ACTIVE', 'SUSPENDED', 'PERMANENT_BAN'
+              suspension_end_date: endDate.toISOString(),
+              suspension_reason: reason
             };
-
-            // Since we haven't migrated FoodItems to DB yet, we can't really Place Order successfully 
-            // because Foreign Keys will fail (foodId not found in DB).
-            // We need to implement Food Loading from Backend too!
-
-            // Temporary: We will TRY to call the API.
-            const response = await OrderService.createOrder(payload);
-
-            // Optimistic update or wait for socket? 
-            // Socket 'order:new' might not fire back to sender if logic is 'notify merchant'.
-            // But we can fetch orders again.
-            const orders = await OrderService.getMyOrders();
-            setOrders(orders);
-
-            return { success: true, orderId: response.orderId };
-
-          } catch (error) {
-            console.error("Place Order Failed:", error);
-            return { success: false, message: error.response?.data?.message || 'Order failed' };
           }
-        };
+          return u;
+        }));
+        return { success: true };
+      };
 
-        // Incident Reports State
-        const [incidentReports, setIncidentReports] = useState(() => {
-          try {
-            const saved = localStorage.getItem('incidentReports');
-            return saved ? JSON.parse(saved) : [];
-          } catch (e) {
-            console.error('Failed to parse incidentReports', e);
-            return [];
+      const unsuspendMerchant = (merchantId) => {
+        setUsers(prevUsers => prevUsers.map(u => {
+          if (u.id === merchantId) {
+            return {
+              ...u,
+              status: 'ACTIVE',
+              suspension_end_date: null,
+              suspension_reason: null
+            };
           }
-        });
+          return u;
+        }));
+        return { success: true };
+      };
 
-        useEffect(() => { localStorage.setItem('incidentReports', JSON.stringify(incidentReports)); }, [incidentReports]);
-
-        const reportIncident = (orderId, merchantId, type, description, evidence) => {
-          const newReport = {
-            id: `rep-${Date.now()}`,
-            orderId,
-            merchantId,
-            customerId: currentUser?.id,
-            type, // 'Wrong Food', 'Bad Quality', 'Late Delivery', 'Rude Behavior'
-            description,
-            evidence, // URL or base64
-            status: 'pending', // 'pending', 'resolved', 'escalated'
-            timestamp: new Date().toISOString()
-          };
-          setIncidentReports([...incidentReports, newReport]);
-          return { success: true };
-        };
-
-        const updateIncidentReport = (id, status, adminNotes = '') => {
-          setIncidentReports(incidentReports.map(rep =>
-            rep.id === id ? { ...rep, status, adminNotes } : rep
-          ));
-        };
-
-
-        // Merchant Suspension Logic
-        const suspendMerchant = (merchantId, durationDays, reason) => {
-          const endDate = new Date();
-          endDate.setDate(endDate.getDate() + durationDays);
-
-          setUsers(prevUsers => prevUsers.map(u => {
-            if (u.id === merchantId) {
-              return {
-                ...u,
-                status: 'SUSPENDED', // 'ACTIVE', 'SUSPENDED', 'PERMANENT_BAN'
-                suspension_end_date: endDate.toISOString(),
-                suspension_reason: reason
-              };
-            }
-            return u;
-          }));
-          return { success: true };
-        };
-
-        const unsuspendMerchant = (merchantId) => {
-          setUsers(prevUsers => prevUsers.map(u => {
-            if (u.id === merchantId) {
-              return {
-                ...u,
-                status: 'ACTIVE',
-                suspension_end_date: null,
-                suspension_reason: null
-              };
-            }
-            return u;
-          }));
-          return { success: true };
-        };
-
-        // Check for expired suspensions (Auto-Unsuspend)
-        useEffect(() => {
-          const now = new Date();
-          setUsers(prevUsers => prevUsers.map(u => {
-            if (u.status === 'SUSPENDED' && u.suspension_end_date) {
-              const end = new Date(u.suspension_end_date);
-              if (now >= end) {
-                // Auto unsuspend
-                return { ...u, status: 'ACTIVE', suspension_end_date: null, suspension_reason: null };
-              }
-            }
-            return u;
-          }));
-        }, []); // Run once on mount
-
-
-        const updateOrder = (orderId, status, additionalData = {}) => {
-          let updates = { status, ...additionalData };
-
-          // Late Delivery Detection
-          if (status === 'delivered_to_shelter') {
-            const now = serverTime; // Use the synchronized serverTime
-            const cutoff = new Date(now);
-            cutoff.setHours(16, 30, 0, 0);
-
-            if (now > cutoff) {
-              const diffMs = now - cutoff;
-              const minutesLate = Math.ceil(diffMs / 60000);
-              updates.is_late_delivery = true;
-              updates.minutes_late = minutesLate;
+      // Check for expired suspensions (Auto-Unsuspend)
+      useEffect(() => {
+        const now = new Date();
+        setUsers(prevUsers => prevUsers.map(u => {
+          if (u.status === 'SUSPENDED' && u.suspension_end_date) {
+            const end = new Date(u.suspension_end_date);
+            if (now >= end) {
+              // Auto unsuspend
+              return { ...u, status: 'ACTIVE', suspension_end_date: null, suspension_reason: null };
             }
           }
+          return u;
+        }));
+      }, []); // Run once on mount
 
-          setOrders(orders.map(o => o.id === orderId ? { ...o, ...updates } : o));
-        };
 
-        const [shelters, setShelters] = useState(() => {
-          try {
-            const saved = localStorage.getItem('shelters');
-            return saved ? JSON.parse(saved) : [
-              { id: 's1', name: 'Main Lobby', detail: 'Near the reception desk', opening_time: '08:00', closing_time: '20:00' },
-              { id: 's2', name: 'Library Entrance', detail: 'By the main glass doors', opening_time: '09:00', closing_time: '17:00' },
-              { id: 's3', name: 'Tech Park Gate', detail: 'Security post 1', opening_time: '07:00', closing_time: '22:00' }
-            ];
-          } catch (e) {
-            console.error('Failed to parse shelters', e);
-            return [];
+      const updateOrder = (orderId, status, additionalData = {}) => {
+        let updates = { status, ...additionalData };
+
+        // Late Delivery Detection
+        if (status === 'delivered_to_shelter') {
+          const now = serverTime; // Use the synchronized serverTime
+          const cutoff = new Date(now);
+          cutoff.setHours(16, 30, 0, 0);
+
+          if (now > cutoff) {
+            const diffMs = now - cutoff;
+            const minutesLate = Math.ceil(diffMs / 60000);
+            updates.is_late_delivery = true;
+            updates.minutes_late = minutesLate;
           }
-        });
+        }
 
-        useEffect(() => { localStorage.setItem('shelters', JSON.stringify(shelters)); }, [shelters]);
+        setOrders(orders.map(o => o.id === orderId ? { ...o, ...updates } : o));
+      };
 
-        const addShelter = (name, detail, opening_time = '08:00', closing_time = '20:00') => {
-          const newShelter = { id: `s${Date.now()}`, name, detail, opening_time, closing_time };
-          setShelters([...shelters, newShelter]);
+      const [shelters, setShelters] = useState(() => {
+        try {
+          const saved = localStorage.getItem('shelters');
+          return saved ? JSON.parse(saved) : [
+            { id: 's1', name: 'Main Lobby', detail: 'Near the reception desk', opening_time: '08:00', closing_time: '20:00' },
+            { id: 's2', name: 'Library Entrance', detail: 'By the main glass doors', opening_time: '09:00', closing_time: '17:00' },
+            { id: 's3', name: 'Tech Park Gate', detail: 'Security post 1', opening_time: '07:00', closing_time: '22:00' }
+          ];
+        } catch (e) {
+          console.error('Failed to parse shelters', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('shelters', JSON.stringify(shelters)); }, [shelters]);
+
+      const addShelter = (name, detail, opening_time = '08:00', closing_time = '20:00') => {
+        const newShelter = { id: `s${Date.now()}`, name, detail, opening_time, closing_time };
+        setShelters([...shelters, newShelter]);
+      };
+
+      const updateShelter = (id, updates) => {
+        setShelters(shelters.map(s => s.id === id ? { ...s, ...updates } : s));
+      };
+
+      const deleteShelter = (id) => {
+        setShelters(shelters.filter(s => s.id !== id));
+      };
+
+      const [withdrawals, setWithdrawals] = useState(() => {
+        try {
+          const saved = localStorage.getItem('withdrawals');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          console.error('Failed to parse withdrawals', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('withdrawals', JSON.stringify(withdrawals)); }, [withdrawals]);
+
+      // Master Data: Dorms & Rooms
+      const [dorms, setDorms] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dorms');
+          return saved ? JSON.parse(saved) : [
+            { id: 'd1', name: 'Asrama Putra A', location_area: 'North Campus' },
+            { id: 'd2', name: 'Asrama Putri C', location_area: 'South Campus' }
+          ];
+        } catch (e) {
+          console.error('Failed to parse dorms', e);
+          return [];
+        }
+      });
+
+      const [rooms, setRooms] = useState(() => {
+        try {
+          const saved = localStorage.getItem('rooms');
+          return saved ? JSON.parse(saved) : [
+            { id: 'r1', dormId: 'd1', room_number: '101' },
+            { id: 'r2', dormId: 'd1', room_number: '102' },
+            { id: 'r3', dormId: 'd2', room_number: '201' },
+            { id: 'r4', dormId: 'd2', room_number: '202' }
+          ];
+        } catch (e) {
+          console.error('Failed to parse rooms', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
+      useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
+      useEffect(() => { localStorage.setItem('rooms', JSON.stringify(rooms)); }, [rooms]);
+
+      // Vendor Invoices
+      const [vendorInvoices, setVendorInvoices] = useState(() => {
+        try {
+          const saved = localStorage.getItem('vendorInvoices');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          console.error('Failed to parse vendorInvoices', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('vendorInvoices', JSON.stringify(vendorInvoices)); }, [vendorInvoices]);
+
+      const createVendorInvoice = (invoiceData) => {
+        const newInvoice = {
+          ...invoiceData,
+          id: `inv-${Date.now()}`,
+          status: 'unpaid', // unpaid | paid
+          createdAt: new Date().toISOString()
+        };
+        setVendorInvoices([...vendorInvoices, newInvoice]);
+        return { success: true };
+      };
+
+      const updateVendorInvoiceStatus = (id, status) => {
+        setVendorInvoices(vendorInvoices.map(inv => inv.id === id ? { ...inv, status } : inv));
+      };
+
+      const deleteVendorInvoice = (id) => {
+        setVendorInvoices(vendorInvoices.filter(inv => inv.id !== id));
+      };
+
+      const addDorm = (name, location_area) => {
+        const newDorm = { id: `d${Date.now()}`, name, location_area };
+        setDorms([...dorms, newDorm]);
+      };
+
+      const updateDorm = (id, updates) => {
+        setDorms(dorms.map(d => d.id === id ? { ...d, ...updates } : d));
+      };
+
+      const deleteDorm = (id) => {
+        setDorms(dorms.filter(d => d.id !== id));
+        // Also delete associated rooms? Optional but good practice.
+        setRooms(rooms.filter(r => r.dormId !== id));
+      };
+
+      const addRoom = (dormId, room_number) => {
+        const newRoom = { id: `r${Date.now()}`, dormId, room_number };
+        setRooms([...rooms, newRoom]);
+      };
+
+      const updateRoom = (id, updates) => {
+        setRooms(rooms.map(r => r.id === id ? { ...r, ...updates } : r));
+      };
+
+      const deleteRoom = (id) => {
+        setRooms(rooms.filter(r => r.id !== id));
+      };
+
+      const requestWithdrawal = (amount, bankDetails) => {
+        if (!currentUser) return { success: false, message: 'Not logged in' };
+
+        const newWithdrawal = {
+          id: `wd-${Date.now()}`,
+          merchantId: currentUser.id,
+          amount,
+          status: 'pending', // pending | approved | rejected
+          bankDetails,
+          createdAt: new Date().toISOString()
         };
 
-        const updateShelter = (id, updates) => {
-          setShelters(shelters.map(s => s.id === id ? { ...s, ...updates } : s));
+        setWithdrawals([...withdrawals, newWithdrawal]);
+        return { success: true };
+      };
+
+      const updateWithdrawalStatus = (id, status) => {
+        setWithdrawals(withdrawals.map(w => w.id === id ? { ...w, status } : w));
+      };
+
+      const sendMessage = (orderId, senderId, text, image = null) => {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return { success: false, message: 'Order not found' };
+
+        if (['pending', 'completed', 'delivered_to_shelter', 'rejected'].includes(order.status)) {
+          return { success: false, message: 'Chat is closed for this order status.' };
+        }
+
+        const newMessage = {
+          id: `msg-${Date.now()}`,
+          orderId,
+          senderId,
+          text,
+          image,
+          timestamp: new Date().toISOString()
         };
 
-        const deleteShelter = (id) => {
-          setShelters(shelters.filter(s => s.id !== id));
-        };
+        setMessages([...messages, newMessage]);
+        return { success: true };
+      };
 
-        const [withdrawals, setWithdrawals] = useState(() => {
-          try {
-            const saved = localStorage.getItem('withdrawals');
-            return saved ? JSON.parse(saved) : [];
-          } catch (e) {
-            console.error('Failed to parse withdrawals', e);
-            return [];
-          }
-        });
+      // Global Modal State
+      const [modal, setModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        isAlert: false
+      });
 
-        useEffect(() => { localStorage.setItem('withdrawals', JSON.stringify(withdrawals)); }, [withdrawals]);
-
-        // Master Data: Dorms & Rooms
-        const [dorms, setDorms] = useState(() => {
-          try {
-            const saved = localStorage.getItem('dorms');
-            return saved ? JSON.parse(saved) : [
-              { id: 'd1', name: 'Asrama Putra A', location_area: 'North Campus' },
-              { id: 'd2', name: 'Asrama Putri C', location_area: 'South Campus' }
-            ];
-          } catch (e) {
-            console.error('Failed to parse dorms', e);
-            return [];
-          }
-        });
-
-        const [rooms, setRooms] = useState(() => {
-          try {
-            const saved = localStorage.getItem('rooms');
-            return saved ? JSON.parse(saved) : [
-              { id: 'r1', dormId: 'd1', room_number: '101' },
-              { id: 'r2', dormId: 'd1', room_number: '102' },
-              { id: 'r3', dormId: 'd2', room_number: '201' },
-              { id: 'r4', dormId: 'd2', room_number: '202' }
-            ];
-          } catch (e) {
-            console.error('Failed to parse rooms', e);
-            return [];
-          }
-        });
-
-        useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
-        useEffect(() => { localStorage.setItem('dorms', JSON.stringify(dorms)); }, [dorms]);
-        useEffect(() => { localStorage.setItem('rooms', JSON.stringify(rooms)); }, [rooms]);
-
-        // Vendor Invoices
-        const [vendorInvoices, setVendorInvoices] = useState(() => {
-          try {
-            const saved = localStorage.getItem('vendorInvoices');
-            return saved ? JSON.parse(saved) : [];
-          } catch (e) {
-            console.error('Failed to parse vendorInvoices', e);
-            return [];
-          }
-        });
-
-        useEffect(() => { localStorage.setItem('vendorInvoices', JSON.stringify(vendorInvoices)); }, [vendorInvoices]);
-
-        const createVendorInvoice = (invoiceData) => {
-          const newInvoice = {
-            ...invoiceData,
-            id: `inv-${Date.now()}`,
-            status: 'unpaid', // unpaid | paid
-            createdAt: new Date().toISOString()
-          };
-          setVendorInvoices([...vendorInvoices, newInvoice]);
-          return { success: true };
-        };
-
-        const updateVendorInvoiceStatus = (id, status) => {
-          setVendorInvoices(vendorInvoices.map(inv => inv.id === id ? { ...inv, status } : inv));
-        };
-
-        const deleteVendorInvoice = (id) => {
-          setVendorInvoices(vendorInvoices.filter(inv => inv.id !== id));
-        };
-
-        const addDorm = (name, location_area) => {
-          const newDorm = { id: `d${Date.now()}`, name, location_area };
-          setDorms([...dorms, newDorm]);
-        };
-
-        const updateDorm = (id, updates) => {
-          setDorms(dorms.map(d => d.id === id ? { ...d, ...updates } : d));
-        };
-
-        const deleteDorm = (id) => {
-          setDorms(dorms.filter(d => d.id !== id));
-          // Also delete associated rooms? Optional but good practice.
-          setRooms(rooms.filter(r => r.dormId !== id));
-        };
-
-        const addRoom = (dormId, room_number) => {
-          const newRoom = { id: `r${Date.now()}`, dormId, room_number };
-          setRooms([...rooms, newRoom]);
-        };
-
-        const updateRoom = (id, updates) => {
-          setRooms(rooms.map(r => r.id === id ? { ...r, ...updates } : r));
-        };
-
-        const deleteRoom = (id) => {
-          setRooms(rooms.filter(r => r.id !== id));
-        };
-
-        const requestWithdrawal = (amount, bankDetails) => {
-          if (!currentUser) return { success: false, message: 'Not logged in' };
-
-          const newWithdrawal = {
-            id: `wd-${Date.now()}`,
-            merchantId: currentUser.id,
-            amount,
-            status: 'pending', // pending | approved | rejected
-            bankDetails,
-            createdAt: new Date().toISOString()
-          };
-
-          setWithdrawals([...withdrawals, newWithdrawal]);
-          return { success: true };
-        };
-
-        const updateWithdrawalStatus = (id, status) => {
-          setWithdrawals(withdrawals.map(w => w.id === id ? { ...w, status } : w));
-        };
-
-        const sendMessage = (orderId, senderId, text, image = null) => {
-          const order = orders.find(o => o.id === orderId);
-          if (!order) return { success: false, message: 'Order not found' };
-
-          if (['pending', 'completed', 'delivered_to_shelter', 'rejected'].includes(order.status)) {
-            return { success: false, message: 'Chat is closed for this order status.' };
-          }
-
-          const newMessage = {
-            id: `msg-${Date.now()}`,
-            orderId,
-            senderId,
-            text,
-            image,
-            timestamp: new Date().toISOString()
-          };
-
-          setMessages([...messages, newMessage]);
-          return { success: true };
-        };
-
-        // Global Modal State
-        const [modal, setModal] = useState({
-          isOpen: false,
-          title: '',
-          message: '',
-          onConfirm: null,
+      const showConfirm = (title, message, onConfirm) => {
+        setModal({
+          isOpen: true,
+          title,
+          message,
+          onConfirm: () => {
+            if (onConfirm) onConfirm();
+            setModal(prev => ({ ...prev, isOpen: false }));
+          },
           isAlert: false
         });
-
-        const showConfirm = (title, message, onConfirm) => {
-          setModal({
-            isOpen: true,
-            title,
-            message,
-            onConfirm: () => {
-              if (onConfirm) onConfirm();
-              setModal(prev => ({ ...prev, isOpen: false }));
-            },
-            isAlert: false
-          });
-        };
-
-        const showAlert = (title, message, onConfirm = null) => {
-          setModal({
-            isOpen: true,
-            title,
-            message,
-            onConfirm: () => {
-              if (onConfirm) onConfirm();
-              setModal(prev => ({ ...prev, isOpen: false }));
-            },
-            isAlert: true
-          });
-        };
-
-        const [familyLinks, setFamilyLinks] = useState(() => {
-          try {
-            const saved = localStorage.getItem('familyLinks');
-            let links = saved ? JSON.parse(saved) : [];
-
-            // Ensure default link p1 -> c1 exists for demo
-            if (!links.find(l => l.parentId === 'p1' && l.studentId === 'c1')) {
-              links.push({ id: 'fl-1', parentId: 'p1', studentId: 'c1', createdAt: new Date().toISOString() });
-            }
-
-            return links;
-          } catch (e) {
-            console.error('Failed to parse familyLinks', e);
-            return [];
-          }
-        });
-
-        useEffect(() => { localStorage.setItem('familyLinks', JSON.stringify(familyLinks)); }, [familyLinks]);
-
-        const [orderingFor, setOrderingFor] = useState(() => {
-          try {
-            const saved = localStorage.getItem('orderingFor');
-            return saved ? JSON.parse(saved) : null;
-          } catch (e) {
-            return null;
-          }
-        });
-
-        useEffect(() => {
-          if (orderingFor) {
-            localStorage.setItem('orderingFor', JSON.stringify(orderingFor));
-          } else {
-            localStorage.removeItem('orderingFor');
-          }
-        }, [orderingFor]);
-
-        // Update orderingFor when currentUser changes
-        useEffect(() => {
-          if (currentUser) {
-            // If not set (e.g. fresh login), default to current user
-            // On refresh, it will be restored from localStorage so this won't overwrite
-            setOrderingFor(prev => prev || currentUser);
-          } else {
-            setOrderingFor(null);
-          }
-        }, [currentUser]);
-
-        const linkFamily = (parentId, studentId) => {
-          // Check if already linked
-          if (familyLinks.find(l => l.parentId === parentId && l.studentId === studentId)) {
-            return { success: false, message: 'Already linked' };
-          }
-          const newLink = {
-            id: `fl-${Date.now()}`,
-            parentId,
-            studentId,
-            createdAt: new Date().toISOString()
-          };
-          setFamilyLinks([...familyLinks, newLink]);
-          return { success: true };
-        };
-
-        const unlinkFamily = (linkId) => {
-          setFamilyLinks(familyLinks.filter(l => l.id !== linkId));
-        };
-
-        const getFamilyMembers = (parentId) => {
-          const links = familyLinks.filter(l => l.parentId === parentId);
-          return links.map(l => {
-            const student = users.find(u => u.id === l.studentId);
-            return { ...student, linkId: l.id };
-          }).filter(s => s && s.id); // Filter out any nulls if user deleted
-        };
-
-
-
-        return (
-          <AppContext.Provider value={{
-            users, currentUser, foods, orders, shelters, withdrawals, messages, dorms, rooms, familyLinks, orderingFor, setOrderingFor,
-            incidentReports, reportIncident, updateIncidentReport, suspendMerchant, unsuspendMerchant,
-            roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS,
-            login, logout, register, toggleUserStatus, createUser, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
-            addShelter, updateShelter, deleteShelter, requestWithdrawal, updateWithdrawalStatus, sendMessage,
-            addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
-            vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice,
-            linkFamily, unlinkFamily, getFamilyMembers,
-            showAlert, showConfirm, getDisplayPrice,
-            isOrderingOpen, orderingPhase, timeRemaining, serverTime
-          }}>
-            {children}
-            <ConfirmationModal
-              isOpen={modal.isOpen}
-              title={modal.title}
-              message={modal.message}
-              onConfirm={modal.onConfirm}
-              onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
-              isAlert={modal.isAlert}
-            />
-          </AppContext.Provider>
-        );
       };
+
+      const showAlert = (title, message, onConfirm = null) => {
+        setModal({
+          isOpen: true,
+          title,
+          message,
+          onConfirm: () => {
+            if (onConfirm) onConfirm();
+            setModal(prev => ({ ...prev, isOpen: false }));
+          },
+          isAlert: true
+        });
+      };
+
+      const [familyLinks, setFamilyLinks] = useState(() => {
+        try {
+          const saved = localStorage.getItem('familyLinks');
+          let links = saved ? JSON.parse(saved) : [];
+
+          // Ensure default link p1 -> c1 exists for demo
+          if (!links.find(l => l.parentId === 'p1' && l.studentId === 'c1')) {
+            links.push({ id: 'fl-1', parentId: 'p1', studentId: 'c1', createdAt: new Date().toISOString() });
+          }
+
+          return links;
+        } catch (e) {
+          console.error('Failed to parse familyLinks', e);
+          return [];
+        }
+      });
+
+      useEffect(() => { localStorage.setItem('familyLinks', JSON.stringify(familyLinks)); }, [familyLinks]);
+
+      const [orderingFor, setOrderingFor] = useState(() => {
+        try {
+          const saved = localStorage.getItem('orderingFor');
+          return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+          return null;
+        }
+      });
+
+      useEffect(() => {
+        if (orderingFor) {
+          localStorage.setItem('orderingFor', JSON.stringify(orderingFor));
+        } else {
+          localStorage.removeItem('orderingFor');
+        }
+      }, [orderingFor]);
+
+      // Update orderingFor when currentUser changes
+      useEffect(() => {
+        if (currentUser) {
+          // If not set (e.g. fresh login), default to current user
+          // On refresh, it will be restored from localStorage so this won't overwrite
+          setOrderingFor(prev => prev || currentUser);
+        } else {
+          setOrderingFor(null);
+        }
+      }, [currentUser]);
+
+      const linkFamily = (parentId, studentId) => {
+        // Check if already linked
+        if (familyLinks.find(l => l.parentId === parentId && l.studentId === studentId)) {
+          return { success: false, message: 'Already linked' };
+        }
+        const newLink = {
+          id: `fl-${Date.now()}`,
+          parentId,
+          studentId,
+          createdAt: new Date().toISOString()
+        };
+        setFamilyLinks([...familyLinks, newLink]);
+        return { success: true };
+      };
+
+      const unlinkFamily = (linkId) => {
+        setFamilyLinks(familyLinks.filter(l => l.id !== linkId));
+      };
+
+      const getFamilyMembers = (parentId) => {
+        const links = familyLinks.filter(l => l.parentId === parentId);
+        return links.map(l => {
+          const student = users.find(u => u.id === l.studentId);
+          return { ...student, linkId: l.id };
+        }).filter(s => s && s.id); // Filter out any nulls if user deleted
+      };
+
+
+
+      return (
+        <AppContext.Provider value={{
+          users, currentUser, foods, orders, shelters, withdrawals, messages, dorms, rooms, familyLinks, orderingFor, setOrderingFor,
+          incidentReports, reportIncident, updateIncidentReport, suspendMerchant, unsuspendMerchant,
+          roles, addRole, updateRole, deleteRole, hasPermission, AVAILABLE_PERMISSIONS,
+          login, logout, register, toggleUserStatus, createUser, updateUser, deleteUser, addFood, updateFood, deleteFood, topUp, placeOrder, updateOrder,
+          addShelter, updateShelter, deleteShelter, requestWithdrawal, updateWithdrawalStatus, sendMessage,
+          addDorm, updateDorm, deleteDorm, addRoom, updateRoom, deleteRoom,
+          vendorInvoices, createVendorInvoice, updateVendorInvoiceStatus, deleteVendorInvoice,
+          linkFamily, unlinkFamily, getFamilyMembers,
+          showAlert, showConfirm, getDisplayPrice,
+          isOrderingOpen, orderingPhase, timeRemaining, serverTime
+        }}>
+          {children}
+          <ConfirmationModal
+            isOpen={modal.isOpen}
+            title={modal.title}
+            message={modal.message}
+            onConfirm={modal.onConfirm}
+            onCancel={() => setModal(prev => ({ ...prev, isOpen: false }))}
+            isAlert={modal.isAlert}
+          />
+        </AppContext.Provider>
+      );
+    };
