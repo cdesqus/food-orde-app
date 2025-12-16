@@ -10,7 +10,7 @@ const seed = async () => {
         await sequelize.sync({ force: true });
         console.log('Database Cleared & Synced.');
 
-        const password = await bcrypt.hash('123', 10);
+        const password = await bcrypt.hash('123456', 10);
 
         // 1. Create Users
         const admin = await User.create({

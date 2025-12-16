@@ -39,7 +39,10 @@ export const register = async (req: Request, res: Response) => {
 
         res.status(201).json({ message: 'User registered successfully', userId: user.id });
     } catch (error) {
-        res.status(400).json({ message: 'Registration failed', error });
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: 'Validation failed', errors: JSON.parse(error.message) });
+        }
+        res.status(500).json({ message: 'Registration failed', error });
     }
 };
 
@@ -65,6 +68,10 @@ export const login = async (req: Request, res: Response) => {
 
         res.json({ token, user: { id: user.id, name: user.name, role: user.role, balance: user.balance } });
     } catch (error) {
-        res.status(400).json({ message: 'Login failed', error });
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: 'Validation failed', errors: JSON.parse(error.message) });
+        }
+        console.error("Login Error:", error); // Critical for debugging
+        res.status(500).json({ message: 'Internal server error' });
     }
 };
