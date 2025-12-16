@@ -21,6 +21,8 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:password@db:5432/food_order
       - REDIS_URL=redis://cache:6379
+      - JWT_SECRET=production_secret_key_change_this
+      - TRUST_PROXY=true
       # Add other secrets here or use env_file
     depends_on:
       db:

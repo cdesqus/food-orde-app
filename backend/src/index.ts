@@ -19,6 +19,11 @@ connectDB();
 const app = express();
 const httpServer = createServer(app);
 
+// Trust Proxy for Nginx (Rate Limiting check)
+if (process.env.TRUST_PROXY === 'true') {
+    app.set('trust proxy', 1);
+}
+
 // Initialize Socket.io
 initSocket(httpServer);
 
