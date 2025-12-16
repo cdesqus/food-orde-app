@@ -5,9 +5,32 @@ This guide details the steps to deploy the EAT.Z Food Order App to production an
 ## 1. Prerequisites
 
 *   **Server**: A VPS (Virtual Private Server) with Linux (Ubuntu recommended).
-*   **Docker**: Installed on the server.
-*   **Docker Compose**: Installed on the server.
 *   **Domain**: Pointed to your server IP (e.g., `food.kaumtech.com`).
+
+### 1.1 Installing Docker & Docker Compose (Ubuntu)
+If you have a fresh VPS, run these commands to install Docker:
+
+1.  **Update your system**:
+    ```bash
+    sudo apt-get update
+    sudo apt-get upgrade -y
+    ```
+2.  **Install Docker**:
+    ```bash
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+    ```
+3.  **Add your user to the Docker group** (so you don't need `sudo` for every command):
+    ```bash
+    sudo usermod -aG docker $USER
+    # Log out and log back in for this to take effect!
+    ```
+4.  **Verify Installation**:
+    ```bash
+    docker --version
+    docker compose version
+    ```
+    *Note: Modern Docker includes Compose as `docker compose` (v2).*
 
 ## 2. Backend Deployment (Docker Compose)
 

@@ -11,7 +11,7 @@ export default defineConfig({
             devOptions: {
                 enabled: true
             },
-            includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+            includeAssets: [],
             manifest: {
                 name: 'EAT.Z Food Order App',
                 short_name: 'EAT.Z',
